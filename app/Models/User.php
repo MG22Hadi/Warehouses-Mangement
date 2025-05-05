@@ -18,9 +18,10 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $fillable = [
+        'department_id',
         'name',
         'email',
-        'password',
+        'job_title'
     ];
 
     /**
@@ -44,5 +45,20 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    public function department()
+    {
+        return $this->belongsTo(Department::class);
+    }
+
+    public function materialRequests()
+    {
+        return $this->hasMany(MaterialRequest::class, 'requested_by');
+    }
+
+    public function custodies()
+    {
+        return $this->hasMany(Custody::class);
     }
 }

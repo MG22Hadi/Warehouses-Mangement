@@ -1,0 +1,27 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class ReceivingNoteItem extends Model
+{
+    protected $fillable = [
+        'receiving_note_id',
+        'product_id',
+        'unit_price',
+        'quantity',
+        'total_price',
+        'notes'
+    ];
+
+    public function receivingNote()
+    {
+        return $this->belongsTo(ReceivingNote::class);
+    }
+
+    public function product()
+    {
+        return $this->belongsTo(Product::class);
+    }
+} 
