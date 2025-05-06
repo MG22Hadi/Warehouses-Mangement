@@ -6,15 +6,15 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    public function up()
+    public function up()//
     {
         Schema::create('exit_notes', function (Blueprint $table) {
             $table->id();
             $table->foreignId('material_request_id')->constrained('material_requests');
             $table->foreignId('warehouse_id')->constrained('warehouses');
+            $table->foreignId('created_by')->constrained('warehouse_keepers');
             $table->string('serial_number')->unique();
             $table->date('date');
-            $table->foreignId('created_by')->constrained('warehouse_keepers');
             $table->timestamps();
         });
     }

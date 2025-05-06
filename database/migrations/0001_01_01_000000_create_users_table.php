@@ -10,10 +10,12 @@ return new class extends Migration
     {
         Schema::create('users', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('department_id')->constrained('departments');
             $table->string('name');
             $table->string('email')->unique();
             $table->string('password');
             $table->enum('role', ['admin', 'manager', 'warehouse_keeper', 'user']);
+            $table->string('job_title');
             $table->rememberToken();
             $table->timestamps();
         });
@@ -23,4 +25,4 @@ return new class extends Migration
     {
         Schema::dropIfExists('users');
     }
-}; 
+};

@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    public function up()
+    public function up()//
     {
         Schema::create('material_request_items', function (Blueprint $table) {
             $table->id();

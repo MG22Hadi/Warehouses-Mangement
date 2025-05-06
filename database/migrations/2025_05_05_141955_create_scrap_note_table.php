@@ -6,14 +6,14 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    public function up()
+    public function up()//
     {
         Schema::create('scrap_notes', function (Blueprint $table) {
             $table->id();
             $table->foreignId('created_by')->constrained('warehouse_keepers');
             $table->foreignId('approved_by')->constrained('managers');
             $table->string('serial_number')->unique();
-            $table->text('reason');
+            $table->text('reason')->nullable();
             $table->date('date');
             $table->text('notes')->nullable();
             $table->timestamps();

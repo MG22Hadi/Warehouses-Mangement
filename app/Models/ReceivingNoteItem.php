@@ -24,4 +24,13 @@ class ReceivingNoteItem extends Model
     {
         return $this->belongsTo(Product::class);
     }
+
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::saving(function ($model) {
+            $model->total_price = $model->quantity * $model->unit_price;
+        });
+    }
 } 
