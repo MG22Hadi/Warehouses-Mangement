@@ -11,6 +11,10 @@ return new class extends Migration
         Schema::create('managers', function (Blueprint $table) {
             $table->id();
             $table->string('name');
+            $table->string('email')->nullable()->unique();
+            $table->string('phone')->nullable()->unique();
+            $table->string('password');
+            $table->rememberToken(); // مهم في نظام المصادقة
             $table->timestamps();
         });
     }

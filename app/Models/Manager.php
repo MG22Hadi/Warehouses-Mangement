@@ -3,10 +3,14 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Laravel\Sanctum\HasApiTokens;
 
 class Manager extends Model
 {
-    protected $fillable = ['name'];
+    use HasApiTokens;
+
+    protected $fillable = ['name', 'email', 'password', 'phone'];
+
 
     public function materialRequests()
     {
@@ -27,4 +31,4 @@ class Manager extends Model
     {
         return $this->hasMany(ScrapNote::class, 'approved_by');
     }
-} 
+}

@@ -3,10 +3,13 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Laravel\Sanctum\HasApiTokens;
 
 class WarehouseKeeper extends Model
 {
-    protected $fillable = ['name'];
+    use HasApiTokens;
+    protected $fillable = ['name', 'email', 'password', 'phone'];
+
 
     public function materialRequests()
     {
@@ -42,4 +45,4 @@ class WarehouseKeeper extends Model
     {
         return $this->hasMany(ScrapNote::class, 'created_by');
     }
-} 
+}

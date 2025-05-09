@@ -40,6 +40,18 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+        'user' => [
+            'driver' => 'sanctum',
+            'provider' => 'users',
+        ],
+        'manager' => [
+            'driver' => 'sanctum',
+            'provider' => 'managers',
+        ],
+        'warehouseKeeper' => [
+            'driver' => 'sanctum',
+            'provider' => 'warehouseKeepers',
+        ]
     ],
 
     /*
@@ -64,6 +76,14 @@ return [
             'driver' => 'eloquent',
             'model' => env('AUTH_MODEL', App\Models\User::class),
         ],
+        'manager' => [
+            'driver' => 'eloquent',
+            'model' => env('AUTH_MODEL', App\Models\Manager::class),
+        ],
+        'warehouseKeepers' => [
+            'driver' => 'eloquent',
+            'model' => env('AUTH_MODEL', App\Models\WarehouseKeeper::class),
+        ]
 
         // 'users' => [
         //     'driver' => 'database',

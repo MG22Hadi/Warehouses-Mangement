@@ -12,9 +12,9 @@ return new class extends Migration
             $table->id();
             $table->foreignId('department_id')->constrained('departments');
             $table->string('name');
-            $table->string('email')->unique();
+            $table->string('email')->nullable()->unique();
+            $table->string('phone')->nullable()->unique();
             $table->string('password');
-            $table->enum('role', ['admin', 'manager', 'warehouse_keeper', 'user']);
             $table->string('job_title');
             $table->rememberToken();
             $table->timestamps();
