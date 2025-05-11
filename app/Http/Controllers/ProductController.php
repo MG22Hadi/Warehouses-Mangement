@@ -110,4 +110,42 @@ class ProductController extends Controller
             return $this->handleExceptionResponse($e);
         }
     }
+
+    public function index(Request $request)
+    {
+       try{
+           $query= Product::query();
+
+           // مصفوفة فلاتر
+           $filters = ['name','code','unit','consumable','from_to'];
+           $appliedFilters=[];
+
+           if($request->has('name')){
+               $query->where('name','like','%'.$request->name.'%');
+               $appliedFilters=['name'];
+           } elseif ($request->has('code')){
+               $query->where('code','like','%'.$request->code .'%');
+               $appliedFilters=['code'];
+           } elseif ($request->has('unit')) {
+               $query->where('unit', 'like', '%' . $request->unit . '%');
+               $appliedFilters[] = 'unit';
+           } elseif ($request->has('consumable')) {
+               $query->where('consumable', $request->consumable);
+               $appliedFilters[] = 'consumable';
+           } elseif ($request->has('from')&& $request->has('to')){
+               $query->whereBetween('created_at',[$request->from,$request->to]);
+               $appliedFilters=['from_to'];
+           }
+
+           if(count($appliedFilters)>1){
+               return $this->errorResponse(400,'يرجى استخدام فلتر واحد فقط في كل طلب');
+           }
+
+           $products=$query->orderBy('created_at','desc')->get();
+
+           return $this->successResponse($products,'قائمة المواد المسترجعة بنجاح حسب الفلتر المختار ');
+       } catch (\Throwable $e){
+           return $this->handleExceptionResponse($e);
+       }
+    }
 }
