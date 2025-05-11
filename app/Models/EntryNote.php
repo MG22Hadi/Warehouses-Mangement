@@ -7,7 +7,6 @@ use Illuminate\Database\Eloquent\Model;
 class EntryNote extends Model
 {
     protected $fillable = [
-        'supplier_id',
         'warehouse_id',
         'serial_number',
         'date',
@@ -17,11 +16,6 @@ class EntryNote extends Model
     protected $casts = [
         'date' => 'date'
     ];
-
-    public function supplier()
-    {
-        return $this->belongsTo(Supplier::class);
-    }
 
     public function warehouse()
     {
@@ -37,4 +31,4 @@ class EntryNote extends Model
     {
         return $this->hasMany(EntryNoteItem::class);
     }
-} 
+}

@@ -19,7 +19,7 @@ class AuthController extends Controller
             'password' => 'required|string|min:6|confirmed',
             'type'     => ['required', Rule::in(['user', 'manager', 'warehouseKeeper'])],
             'email'    => 'nullable|email|unique:users|unique:managers|unique:warehouse_keepers',
-            'phone'    => 'nullable|string|unique:users|unique:managers|unique:warehouse_keepers',
+            'phone'    => 'nullable|string|unique:users|unique:managers|unique:warehouse_keepers|regex:/^09\d{8}$/',
         ]);
 
         if ($validator->fails()) {
@@ -89,6 +89,11 @@ class AuthController extends Controller
 
         $login_type = filter_var($request->login, FILTER_VALIDATE_EMAIL) ? 'email' : 'phone';
 
+        if ($login_type === 'phone') {
+            if (!preg_match('/^09\d{8}$/', $request->login)) {
+                return $this->errorResponse('رقم الهاتف يجب أن يتكون من 10 أرقام ويبدأ بـ 09', 422, [], 'AUTH_003');
+            }
+        }
         $models = [
             'user'             => \App\Models\User::class,
             'manager'          => \App\Models\Manager::class,
