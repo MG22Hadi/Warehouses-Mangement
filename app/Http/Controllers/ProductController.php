@@ -4,12 +4,15 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use App\Models\Stock;
+use App\Traits\ApiResponse;
+
 
 
 use Illuminate\Http\Request;
 
 class ProductController extends Controller
 {
+    use ApiResponse;
 
     // البحث بالاسم مع أوتوكومبليت
     public function search(Request $request): \Illuminate\Http\JsonResponse
@@ -45,22 +48,22 @@ class ProductController extends Controller
 
     public function store(Request $request)
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'code' => 'required|string|max:255|unique:products,code',
-            'unit' => 'required|string|max:255',
-            'consumable' => 'boolean',
-            'notes' => 'nullable|string',
-        ]);
+        try {
+            $validated = $request->validate([
+                'name' => 'required|string|max:255',
+                'code' => 'required|string|max:255|unique:products,code',
+                'unit' => 'required|string|max:255',
+                'consumable' => 'boolean',
+                'notes' => 'nullable|string',
+            ]);
 
-        $product = Product::create($validated);
+            $product = Product::create($validated);
 
-        return response()->json([
-            'message' => 'Product created successfully',
-            'data' => $product
-        ], 201);
+            return $this->successResponse($product, 'تمت إضافة المادة بنجاح', 201);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return $this->validationErrorResponse($e->validator);
+        } catch (\Throwable $e) {
+            return $this->handleExceptionResponse($e);
+        }
     }
-
-
-
 }
