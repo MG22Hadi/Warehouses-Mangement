@@ -25,10 +25,26 @@ class ProductController extends Controller
 
     // جلب تفاصيل المنتج (كود، وحدة، كمية)
     public function details(Request $request, $id)
-    // تابع إضافة مادة يلي هيي الترويسة 😉
-    public function store(Request $request)
     {
         $warehouseId = $request->get('warehouse_id');
+
+        $product = Product::findOrFail($id);
+
+        $stock = Stock::where('product_id', $id)
+            ->where('warehouse_id', $warehouseId)
+            ->first();
+
+        return response()->json([
+            'id'    => $product->id,
+            'code'  => $product->code,
+            'unit'  => $product->unit, // مباشرة من خصائص المنتج
+            'stock'  => optional($stock)->quantity ?? 0,
+        ]);
+    }
+
+
+    public function store(Request $request)
+    {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'code' => 'required|string|max:255|unique:products,code',
@@ -37,19 +53,9 @@ class ProductController extends Controller
             'notes' => 'nullable|string',
         ]);
 
-        $product = Product::findOrFail($id);
-
-        $stock = Stock::where('product_id', $id)
-            ->where('warehouse_id', $warehouseId)
-            ->first();
         $product = Product::create($validated);
 
         return response()->json([
-            'id'    => $product->id,
-            'code'  => $product->code,
-            'unit'  => $product->unit, // مباشرة من خصائص المنتج
-            'stock'  => optional($stock)->quantity ?? 0,
-        ]);
             'message' => 'Product created successfully',
             'data' => $product
         ], 201);
