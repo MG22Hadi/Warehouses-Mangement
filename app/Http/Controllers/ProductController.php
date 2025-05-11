@@ -66,4 +66,48 @@ class ProductController extends Controller
             return $this->handleExceptionResponse($e);
         }
     }
+
+    public function update(Request $request, $id)
+    {
+        try {
+            $validated = $request->validate([
+                'name' => 'required|string|max:255',
+                'code' => 'required|string|max:255|unique:products,code,' . $id,
+                'unit' => 'required|string|max:255',
+                'consumable' => 'boolean',
+                'notes' => 'nullable|string',
+            ]);
+
+            $product = Product::find($id);
+
+            if (!$product) {
+                return $this->notFoundResponse('المادة غير موجودة');
+            }
+
+            $product->update($validated);
+
+            return $this->successResponse($product, 'تم تعديل المادة بنجاح');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return $this->validationErrorResponse($e->validator);
+        } catch (\Throwable $e) {
+            return $this->handleExceptionResponse($e);
+        }
+    }
+
+    public function destroy($id)
+    {
+        try {
+            $product = Product::find($id);
+
+            if (!$product) {
+                return $this->notFoundResponse('المادة غير موجودة');
+            }
+
+            $product->delete();
+
+            return $this->successMessage('تم حذف المادة بنجاح');
+        } catch (\Throwable $e) {
+            return $this->handleExceptionResponse($e);
+        }
+    }
 }
