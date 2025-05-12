@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\EntryNote;
+use App\Models\EntryNoteItem;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Traits\ApiResponse;
@@ -32,9 +33,9 @@ class EntryNoteController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'date' => 'required|date',
-            'warehouse_id' => 'required|exists:warehouses,id',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
+            'items.*.warehouse_id' => 'required|exists:warehouses,id',
             'items.*.quantity' => 'required|numeric|min:0.01',
             'items.*.notes' => 'nullable|string',
         ]);
@@ -44,42 +45,53 @@ class EntryNoteController extends Controller
         }
 
         try {
-            DB::transaction(function () use ($request) {
-
-                // إنشاء السيريال نمبر تلقائياً
+            $result = DB::transaction(function () use ($request) {
                 $serialNumber = $this->generateSerialNumber();
 
                 $entryNote = EntryNote::create([
                     'serial_number' => $serialNumber,
                     'date' => $request->date,
-                    'warehouse_id' => $request->warehouse_id,
-                    'created_by' => $request->user()->id ?? null,
+                    'created_by' => $request->user()->id,
                 ]);
 
                 foreach ($request->items as $item) {
-                    $stock = DB::table('stock')
+                    $stock = DB::table('stocks')
                         ->where('product_id', $item['product_id'])
-                        ->where('warehouse_id', $request->warehouse_id)
+                        ->where('warehouse_id', $item['warehouse_id'])
                         ->first();
 
                     if (!$stock) {
                         throw new \Exception("لا يوجد مخزون لهذا المنتج في المستودع المختار.");
                     }
 
-
-                    DB::table('stock')
+                    DB::table('stocks')
                         ->where('product_id', $item['product_id'])
-                        ->where('warehouse_id', $request->warehouse_id)
+                        ->where('warehouse_id', $item['warehouse_id'])
                         ->increment('quantity', $item['quantity']);
+
+                    EntryNoteItem::create([
+                        'entry_note_id' => $entryNote->id,
+                        'product_id' => $item['product_id'],
+                        'warehouse_id' => $item['warehouse_id'],
+                        'quantity' => $item['quantity'],
+                        'notes' => $item['notes'] ?? null,
+                        'created_by' => $request->user()->id
+                    ]);
                 }
+
+                return [
+                    'entry_note' => $entryNote,
+                    'message' => 'تم إنشاء المذكرة بنجاح'
+                ];
             });
 
-            return $this->successMessage('تم إنشاء المذكرة بنجاح', 201);
+            return $this->successResponse($result['entry_note'], $result['message'], 201);
+
         } catch (\Exception $e) {
             return $this->errorResponse(
-                message: $e->getMessage(), // عرض رسالة الخطأ الحقيقية
+                message: $e->getMessage(),
                 code: 500,
-                errors: ['trace' => $e->getTraceAsString()], // فقط في وضع التطوير
+                errors: ['trace' => $e->getTraceAsString()],
                 internalCode: 'ENTRY_NOTE_CREATION_FAILED'
             );
         }

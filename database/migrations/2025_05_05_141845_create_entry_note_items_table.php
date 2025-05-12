@@ -12,6 +12,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('entry_note_id')->constrained('entry_notes');
             $table->foreignId('product_id')->constrained('products');
+            $table->foreignId('warehouse_id')->constrained('warehouses');
             $table->float('quantity', 10, 2);
             $table->text('notes')->nullable();
             $table->timestamps();
