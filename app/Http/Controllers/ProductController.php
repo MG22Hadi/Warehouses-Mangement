@@ -9,6 +9,7 @@ use App\Traits\ApiResponse;
 
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class ProductController extends Controller
 {
@@ -48,23 +49,43 @@ class ProductController extends Controller
 
     public function store(Request $request)
     {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'code' => 'required|string|max:255|unique:products,code',
+            'unit' => 'required|string|max:50',
+            'consumable' => 'required|boolean',
+            'notes' => 'nullable|string',
+            'warehouse_id' => 'required|exists:warehouses,id'
+        ]);
+
+        DB::beginTransaction();
+
         try {
-            $validated = $request->validate([
-                'name' => 'required|string|max:255',
-                'code' => 'required|string|max:255|unique:products,code',
-                'unit' => 'required|string|max:255',
-                'consumable' => 'boolean',
-                'notes' => 'nullable|string',
+            $product = Product::create([
+                'name' => $validated['name'],
+                'code' => $validated['code'],
+                'unit' => $validated['unit'],
+                'consumable' => $validated['consumable'],
+                'notes' => $validated['notes'] ?? null,
             ]);
 
-            $product = Product::create($validated);
-            $stock=Stock::create($product->id,$request->warehouse->id);
+            // إضافة لسطر المخزون بكمية صفر
+            $stock = Stock::create([
+                'warehouse_id' => $validated['warehouse_id'],
+                'product_id' => $product->id,
+                'quantity' => 0,
+            ]);
 
-            return $this->successResponse($stock, 'تمت إضافة المادة بنجاح', 201);
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            return $this->validationErrorResponse($e->validator);
-        } catch (\Throwable $e) {
-            return $this->handleExceptionResponse($e);
+            DB::commit();
+
+            return $this->successResponse([
+                'product' => $product,
+                'stock' => $stock,
+            ], 'تم إنشاء المنتج وربطه بالمستودع بنجاح', 201);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return $this->errorResponse('فشل في إنشاء المنتج: ' . $e->getMessage(), 500);
         }
     }
 
@@ -77,6 +98,7 @@ class ProductController extends Controller
                 'unit' => 'required|string|max:255',
                 'consumable' => 'boolean',
                 'notes' => 'nullable|string',
+                'warehouse_id' => 'required|exists:warehouses,id',
             ]);
 
             $product = Product::find($id);
