@@ -58,8 +58,9 @@ class ProductController extends Controller
             ]);
 
             $product = Product::create($validated);
+            $stock=Stock::create($product->id,$request->warehouse->id);
 
-            return $this->successResponse($product, 'تمت إضافة المادة بنجاح', 201);
+            return $this->successResponse($stock, 'تمت إضافة المادة بنجاح', 201);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return $this->validationErrorResponse($e->validator);
         } catch (\Throwable $e) {
