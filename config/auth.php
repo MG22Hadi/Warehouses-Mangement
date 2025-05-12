@@ -48,10 +48,10 @@ return [
             'driver' => 'sanctum',
             'provider' => 'managers',
         ],
-        'warehouseKeeper' => [
+        'warehouse_keeper' => [
             'driver' => 'sanctum',
-            'provider' => 'warehouseKeepers',
-        ]
+            'provider' => 'warehouse_keepers',
+        ],
     ],
 
     /*
@@ -80,10 +80,10 @@ return [
             'driver' => 'eloquent',
             'model' => env('AUTH_MODEL', App\Models\Manager::class),
         ],
-        'warehouseKeepers' => [
+        'warehouse_keepers' => [
             'driver' => 'eloquent',
-            'model' => env('AUTH_MODEL', App\Models\WarehouseKeeper::class),
-        ]
+            'model' => App\Models\WarehouseKeeper::class,
+        ],
 
         // 'users' => [
         //     'driver' => 'database',

@@ -17,8 +17,11 @@ class EntryNoteController extends Controller
     public function index()
     {
         try {
-            $notes = EntryNote::with(['items.product', 'warehouse', 'user'])->get();
-            return $this->successResponse($notes, 'تم جلب المذكرات بنجاح');
+            $notes = EntryNote::withCount('items') // هنا نستخدم withCount بدلاً of with
+            ->with(['warehouse', 'user'])
+                ->get();
+
+            return $this->successResponse($notes, 'تم جلب المذكرات مع عدد الأصناف بنجاح');
         } catch (\Exception $e) {
             return $this->handleExceptionResponse($e);
         }
@@ -28,7 +31,6 @@ class EntryNoteController extends Controller
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'serial_number' => 'required|unique:entry_notes',
             'date' => 'required|date',
             'warehouse_id' => 'required|exists:warehouses,id',
             'items' => 'required|array|min:1',
@@ -43,15 +45,20 @@ class EntryNoteController extends Controller
 
         try {
             DB::transaction(function () use ($request) {
+
+                // إنشاء السيريال نمبر تلقائياً
+                $serialNumber = $this->generateSerialNumber();
+
                 $entryNote = EntryNote::create([
-                    'serial_number' => $request->serial_number,
+                    'serial_number' => $serialNumber,
                     'date' => $request->date,
                     'warehouse_id' => $request->warehouse_id,
-                    'created_by' => auth()->id(),
+                    'created_by' => $request->user()->id ?? null,
                 ]);
 
                 foreach ($request->items as $item) {
-                    $stock = Stock::where('product_id', $item['product_id'])
+                    $stock = DB::table('stock')
+                        ->where('product_id', $item['product_id'])
                         ->where('warehouse_id', $request->warehouse_id)
                         ->first();
 
@@ -59,25 +66,22 @@ class EntryNoteController extends Controller
                         throw new \Exception("لا يوجد مخزون لهذا المنتج في المستودع المختار.");
                     }
 
-                    if ($item['quantity'] > $stock->quantity) {
-                        throw new \Exception("الكمية المدخلة للمنتج تتجاوز الكمية المتوفرة في المستودع.");
-                    }
 
-                    $entryNote->items()->create([
-                        'product_id' => $item['product_id'],
-                        'quantity'   => $item['quantity'],
-                        'notes'      => $item['notes'] ?? null,
-                    ]);
-
-                    // تحديث الكمية في المخزون بعد الإدخال
-                    $stock->quantity -= $item['quantity'];
-                    $stock->save();
+                    DB::table('stock')
+                        ->where('product_id', $item['product_id'])
+                        ->where('warehouse_id', $request->warehouse_id)
+                        ->increment('quantity', $item['quantity']);
                 }
             });
 
             return $this->successMessage('تم إنشاء المذكرة بنجاح', 201);
         } catch (\Exception $e) {
-            return $this->handleExceptionResponse($e, 'فشل في إنشاء المذكرة');
+            return $this->errorResponse(
+                message: $e->getMessage(), // عرض رسالة الخطأ الحقيقية
+                code: 500,
+                errors: ['trace' => $e->getTraceAsString()], // فقط في وضع التطوير
+                internalCode: 'ENTRY_NOTE_CREATION_FAILED'
+            );
         }
     }
 
@@ -91,5 +95,40 @@ class EntryNoteController extends Controller
         } catch (\Exception $e) {
             return $this->handleExceptionResponse($e, 'المذكرة غير موجودة');
         }
+    }
+
+    //لتوليد السيريال نمبر
+    private function generateSerialNumber()
+    {
+        $currentYear = date('Y');
+
+        // الحصول على آخر مذكرة لهذه السنة
+        $lastEntry = EntryNote::whereYear('created_at', $currentYear)
+            ->orderBy('id', 'desc')
+            ->first();
+
+        // تحديد الأرقام الجديدة
+        if (!$lastEntry) {
+            // أول مذكرة في السنة
+            $folderNumber = 1;
+            $noteNumber = 1;
+        } else {
+            // فك الترميز من السيريال السابق
+            $serial = trim($lastEntry->serial_number, '()');
+            list($lastFolderNumber, $lastNoteNumber) = explode('/', $serial);
+
+            $lastFolderNumber = (int)$lastFolderNumber;
+            $lastNoteNumber = (int)$lastNoteNumber;
+
+            // حساب الأرقام الجديدة
+            $noteNumber = $lastNoteNumber + 1;
+            $folderNumber = $lastFolderNumber;
+
+            if ($noteNumber % 50 == 1 && $noteNumber > 50) {
+                $folderNumber = floor($noteNumber / 50) + 1;
+            }
+        }
+
+        return "($folderNumber/$noteNumber)";
     }
 }
