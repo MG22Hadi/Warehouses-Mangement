@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\EntryNoteController;
+use App\Http\Controllers\ExitNoteController;
 use App\Http\Controllers\ProductController;
 use App\Models\EntryNote;
 use Illuminate\Http\Request;
@@ -21,10 +22,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/allEntryNote',[EntryNoteController::class,'index']);
     Route::post('/entryNote',[EntryNoteController::class,'store']);
 
+    Route::get('/allExitNote',[ExitNoteController::class,'index']);
+    Route::post('/exitNote',[ExitNoteController::class,'store']);
+
     Route::post('/products/store', [ProductController::class, 'store']);
     Route::put('products/update/{id}', [ProductController::class, 'update']);
     Route::delete('products/delete/{id}', [ProductController::class, 'destroy']);
     Route::get('/products',[ProductController::class,'index']);
+
+
 });
 
 

@@ -2,19 +2,18 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Controller;
 use App\Models\EntryNote;
 use App\Models\EntryNoteItem;
+use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use App\Traits\ApiResponse;
 use Illuminate\Support\Facades\Validator;
-use App\Models\Stock;
 
-class EntryNoteController extends Controller
+class ExitNoteController extends Controller
 {
     use ApiResponse;
 
-    // إظهار كل المذكرات
     public function index()
     {
         try {
@@ -64,16 +63,10 @@ class EntryNoteController extends Controller
                         throw new \Exception("لا يوجد مخزون لهذا المنتج في المستودع المختار.");
                     }
 
-                    // التحقق من وجود كمية كافية في المخزون
-                    if ($stock->quantity < $item['quantity']) {
-                        throw new \Exception("الكمية المطلوبة (".$item['quantity'].") غير متوفرة في المخزون (الكمية المتاحة: ".$stock->quantity.") للمنتج ID: ".$item['product_id']);
-                    }
- 
-
                     DB::table('stocks')
                         ->where('product_id', $item['product_id'])
                         ->where('warehouse_id', $item['warehouse_id'])
-                        ->decrement('quantity', $item['quantity']);
+                        ->increment('quantity', $item['quantity']);
 
                     EntryNoteItem::create([
                         'entry_note_id' => $entryNote->id,
