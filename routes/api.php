@@ -21,13 +21,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/allEntryNote',[EntryNoteController::class,'index']);
     Route::post('/entryNote',[EntryNoteController::class,'store']);
 
+    //    WAREHOUSE
     Route::post('/warehouses/store', [WarehouseController::class, 'store']);
     Route::put('/warehouses/update/{id}', [WarehouseController::class, 'update']);
     Route::delete('/warehouses/destroy/{id}', [WarehouseController::class, 'destroy']);
+    Route::get('/warehouses/index', [WarehouseController::class, 'index']);
 
 
-
-
+    //    PRODUCTS
     Route::post('/products/store', [ProductController::class, 'store']);
     Route::put('products/update/{id}', [ProductController::class, 'update']);
     Route::delete('products/delete/{id}', [ProductController::class, 'destroy']);
