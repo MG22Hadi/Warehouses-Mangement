@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Stock;
 use App\Models\Warehouse;
 use Illuminate\Http\Request;
 use App\Traits\ApiResponse;
@@ -14,19 +15,19 @@ class WarehouseController extends Controller
 
     public function store(Request $request)
     {
+        DB::beginTransaction();
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'location' => 'required|string|max:255',
             'type' => 'nullable|string',
         ]);
 
-        DB::beginTransaction();
 
         try {
             $warehouse = Warehouse::create([
                 'name' => $validated['name'],
                 'location' => $validated['location'],
-                'type' => $validated['type'] ?? null,
             ]);
 
             DB::commit();
@@ -42,4 +43,58 @@ class WarehouseController extends Controller
             return $this->errorResponse('فشل في إنشاء المستودع : ' . $e->getMessage(), 500);
         }
     }
+
+    public function update(Request $request, $id)
+    {
+        DB::beginTransaction();
+        try {
+            $validated = $request->validate([
+                'name' => 'string|max:255',
+                'location' => 'string|max:255',
+            ]);
+
+            $warehouse = Warehouse::find($id);
+
+            if (!$warehouse) {
+                return $this->notFoundResponse('المستودع غير موجودة');
+            }
+
+            $warehouse->update($validated);
+
+            DB::commit();
+            return $this->successResponse($warehouse, 'تم تعديل المستودع بنجاح',201);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return $this->validationErrorResponse($e->validator);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+
+            return $this->handleExceptionResponse($e);
+        }
+    }
+
+    public function destroy($id)
+    {
+        DB::beginTransaction();
+
+        try {
+            $warehouse = Warehouse::findOrFail($id);
+
+            //Stock::where('warehouse_id', $warehouse->id)->delete();
+
+            $warehouse->delete();
+
+            DB::commit();
+
+            return $this->successResponse(null, 'تم حذف المستودع والمخزون المرتبط به بنجاح');
+
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            DB::rollBack();
+            return $this->errorResponse('المستودع غير موجود', 404);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return $this->errorResponse('فشل في حذف المستودع: ' . $e->getMessage(), 500);
+        }
+    }
+
 }

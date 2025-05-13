@@ -22,6 +22,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/entryNote',[EntryNoteController::class,'store']);
 
     Route::post('/warehouses/store', [WarehouseController::class, 'store']);
+    Route::put('/warehouses/update/{id}', [WarehouseController::class, 'update']);
+    Route::delete('/warehouses/destroy/{id}', [WarehouseController::class, 'destroy']);
+
+
 
 
     Route::post('/products/store', [ProductController::class, 'store']);
