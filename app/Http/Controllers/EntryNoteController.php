@@ -64,11 +64,6 @@ class EntryNoteController extends Controller
                         throw new \Exception("لا يوجد مخزون لهذا المنتج في المستودع المختار.");
                     }
 
-                    // التحقق من وجود كمية كافية في المخزون
-                    if ($stock->quantity < $item['quantity']) {
-                        throw new \Exception("الكمية المطلوبة (".$item['quantity'].") غير متوفرة في المخزون (الكمية المتاحة: ".$stock->quantity.") للمنتج ID: ".$item['product_id']);
-                    }
- 
 
                     DB::table('stocks')
                         ->where('product_id', $item['product_id'])
@@ -116,7 +111,7 @@ class EntryNoteController extends Controller
     }
 
     //لتوليد السيريال نمبر
-    private function generateSerialNumber()
+    private function generateSerialNumber(): string
     {
         $currentYear = date('Y');
 

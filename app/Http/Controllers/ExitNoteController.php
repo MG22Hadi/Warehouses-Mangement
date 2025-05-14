@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Models\EntryNote;
 use App\Models\EntryNoteItem;
+use App\Models\ExitNote;
+use App\Models\ExitNoteItem;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -17,7 +19,7 @@ class ExitNoteController extends Controller
     public function index()
     {
         try {
-            $notes = EntryNote::withCount('items') // هنا نستخدم withCount بدلاً of with
+            $notes = ExitNote::withCount('items') // هنا نستخدم withCount بدلاً of with
             ->with(['warehouse', 'user'])
                 ->get();
 
@@ -47,7 +49,7 @@ class ExitNoteController extends Controller
             $result = DB::transaction(function () use ($request) {
                 $serialNumber = $this->generateSerialNumber();
 
-                $entryNote = EntryNote::create([
+                $exitNote = ExitNote::create([
                     'serial_number' => $serialNumber,
                     'date' => $request->date,
                     'created_by' => $request->user()->id,
@@ -63,13 +65,18 @@ class ExitNoteController extends Controller
                         throw new \Exception("لا يوجد مخزون لهذا المنتج في المستودع المختار.");
                     }
 
+                    // التحقق من وجود كمية كافية في المخزون
+                    if ($stock->quantity < $item['quantity']) {
+                        throw new \Exception("الكمية المطلوبة (".$item['quantity'].") غير متوفرة في المخزون (الكمية المتاحة: ".$stock->quantity.") للمنتج ID: ".$item['product_id']);
+                    }
+
                     DB::table('stocks')
                         ->where('product_id', $item['product_id'])
                         ->where('warehouse_id', $item['warehouse_id'])
                         ->increment('quantity', $item['quantity']);
 
-                    EntryNoteItem::create([
-                        'entry_note_id' => $entryNote->id,
+                    ExitNoteItem::create([
+                        'entry_note_id' => $exitNote->id,
                         'product_id' => $item['product_id'],
                         'warehouse_id' => $item['warehouse_id'],
                         'quantity' => $item['quantity'],
@@ -79,7 +86,7 @@ class ExitNoteController extends Controller
                 }
 
                 return [
-                    'entry_note' => $entryNote,
+                    'entry_note' => $exitNote,
                     'message' => 'تم إنشاء المذكرة بنجاح'
                 ];
             });
@@ -91,7 +98,7 @@ class ExitNoteController extends Controller
                 message: $e->getMessage(),
                 code: 500,
                 errors: ['trace' => $e->getTraceAsString()],
-                internalCode: 'ENTRY_NOTE_CREATION_FAILED'
+                internalCode: 'EXIT_NOTE_CREATION_FAILED'
             );
         }
     }
@@ -101,7 +108,7 @@ class ExitNoteController extends Controller
     public function show($id)
     {
         try {
-            $note = EntryNote::with(['items.product', 'warehouse', 'user'])->findOrFail($id);
+            $note = ExitNote::with(['items.product', 'warehouse', 'user'])->findOrFail($id);
             return $this->successResponse($note, 'تم جلب المذكرة بنجاح');
         } catch (\Exception $e) {
             return $this->handleExceptionResponse($e, 'المذكرة غير موجودة');
@@ -109,7 +116,7 @@ class ExitNoteController extends Controller
     }
 
     //لتوليد السيريال نمبر
-    private function generateSerialNumber()
+    private function generateSerialNumber(): string
     {
         $currentYear = date('Y');
 
