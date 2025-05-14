@@ -91,6 +91,7 @@ class ProductController extends Controller
 
     public function update(Request $request, $id)
     {
+        DB::beginTransaction();
         try {
             $validated = $request->validate([
                 'name' => 'required|string|max:255',
@@ -109,30 +110,45 @@ class ProductController extends Controller
 
             $product->update($validated);
 
-            return $this->successResponse($product, 'تم تعديل المادة بنجاح');
+            DB::commit();
+            return $this->successResponse($product, 'تم تعديل المادة بنجاح',201);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return $this->validationErrorResponse($e->validator);
         } catch (\Throwable $e) {
+            DB::rollBack();
+
             return $this->handleExceptionResponse($e);
         }
     }
 
     public function destroy($id)
     {
+        DB::beginTransaction();
+
         try {
-            $product = Product::find($id);
+            // التأكد من وجود المنتج
+            $product = Product::findOrFail($id);
 
-            if (!$product) {
-                return $this->notFoundResponse('المادة غير موجودة');
-            }
+            // حذف السطور المرتبطة بالمخزون
+            //Stock::where('product_id', $product->id)->delete();
 
+            // حذف المنتج
             $product->delete();
 
-            return $this->successMessage('تم حذف المادة بنجاح');
-        } catch (\Throwable $e) {
-            return $this->handleExceptionResponse($e);
+            DB::commit();
+
+            return $this->successResponse(null, 'تم حذف المنتج والمخزون المرتبط به بنجاح');
+
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            DB::rollBack();
+            return $this->errorResponse('المنتج غير موجود', 404);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return $this->errorResponse('فشل في حذف المنتج: ' . $e->getMessage(), 500);
         }
     }
+
 
     public function index(Request $request)
     {
@@ -165,8 +181,13 @@ class ProductController extends Controller
            }
 
            $products=$query->orderBy('created_at','desc')->get();
+           $count= count($products);
 
-           return $this->successResponse($products,'قائمة المواد المسترجعة بنجاح حسب الفلتر المختار ');
+           return $this->successResponse(
+               ['products'=>$products
+                   ,'count'=>$count],
+               'قائمة المواد المسترجعة بنجاح حسب الفلتر المختار ',
+               201);
        } catch (\Throwable $e){
            return $this->handleExceptionResponse($e);
        }
