@@ -71,6 +71,7 @@ class EntryNoteController extends Controller
                         ->where('product_id', $item['product_id'])
                         ->where('warehouse_id', $request->warehouse_id)
                         ->increment('quantity', $item['quantity']);
+                    
                 }
             });
 
