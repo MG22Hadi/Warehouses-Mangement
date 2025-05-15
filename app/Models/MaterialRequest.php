@@ -8,7 +8,6 @@ class MaterialRequest extends Model
 {
     protected $fillable = [
         'requested_by',
-        'manager_id',
         'warehouse_keeper_id',
         'serial_number',
         'date'
@@ -25,21 +24,21 @@ class MaterialRequest extends Model
 
     public function manager()
     {
-        return $this->belongsTo(Manager::class);
+        return $this->belongsTo(Manager::class, 'manager_id');
     }
 
     public function warehouseKeeper()
     {
-        return $this->belongsTo(WarehouseKeeper::class);
+        return $this->belongsTo(WarehouseKeeper::class, 'warehouse_keeper_id');
     }
 
     public function items()
     {
-        return $this->hasMany(MaterialRequestItem::class);
+        return $this->hasMany(MaterialRequestItem::class  );
     }
 
     public function exitNotes()
     {
         return $this->hasMany(ExitNote::class);
     }
-} 
+}

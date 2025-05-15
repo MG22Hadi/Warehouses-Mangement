@@ -11,8 +11,9 @@ return new class extends Migration
         Schema::create('material_requests', function (Blueprint $table) {
             $table->id();
             $table->foreignId('requested_by')->constrained('users');
-            $table->foreignId('manager_id')->constrained('managers');
+            $table->foreignId('manager_id')->nullable()->constrained('managers');
             $table->foreignId('warehouse_keeper_id')->constrained('warehouse_keepers');
+            $table->enum('status', ['pending','approved', 'rejected','delivered'])->default('pending');
             $table->string('serial_number')->unique();
             $table->date('date');
             $table->timestamps();

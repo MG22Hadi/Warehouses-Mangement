@@ -3,6 +3,7 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\EntryNoteController;
 use App\Http\Controllers\ExitNoteController;
+use App\Http\Controllers\MaterialRequestController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\WarehouseController;
 use App\Models\EntryNote;
@@ -39,7 +40,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('products/delete/{id}', [ProductController::class, 'destroy']);
     Route::get('/products',[ProductController::class,'index']);
 
-
+    Route::post('/MRequest',[MaterialRequestController::class,'store']);
+    Route::get('/allRequestMaterial',[ExitNoteController::class,'index']);
 });
 
 
