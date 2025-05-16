@@ -6,7 +6,7 @@ use App\Models\Product;
 use App\Models\Warehouse;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
-use Faker\Factory as Faker;
+use Faker\Factory ;
 
 
 class ProductsSeeder extends Seeder
@@ -16,7 +16,7 @@ class ProductsSeeder extends Seeder
      */
     public function run(): void
     {
-        $faker = Faker::create();
+        $faker = Factory::create();
         $numberOfProducts = 10;
         $nameOptions = ['قلم', 'حنفية', 'محارم', 'دفتر', 'مسطرة'];
         $unitOptions = ['قطعة', 'علبة', 'كرتونة', 'كيلوغرام', 'لتر'];

@@ -10,6 +10,7 @@ class MaterialRequest extends Model
         'requested_by',
         'warehouse_keeper_id',
         'serial_number',
+        'status',
         'date'
     ];
 
@@ -22,9 +23,9 @@ class MaterialRequest extends Model
         return $this->belongsTo(User::class, 'requested_by');
     }
 
-    public function manager()
+    public function approvedBy()
     {
-        return $this->belongsTo(Manager::class, 'manager_id');
+        return $this->belongsTo(Manager::class, 'approved_by');
     }
 
     public function warehouseKeeper()

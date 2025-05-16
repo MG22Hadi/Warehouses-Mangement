@@ -31,6 +31,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/allEntryNote',[EntryNoteController::class,'index']);
     Route::post('/entryNote',[EntryNoteController::class,'store']);
 
+    //EXIT NOTE
     Route::get('/allExitNote',[ExitNoteController::class,'index']);
     Route::post('/exitNote',[ExitNoteController::class,'store']);
 
@@ -47,13 +48,20 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('products/delete/{id}', [ProductController::class, 'destroy']);
     Route::get('/products',[ProductController::class,'index']);
 
+    //MATERIAL REQUEST
     Route::post('/MRequest',[MaterialRequestController::class,'store']);
-    Route::get('/allRequestMaterial',[ExitNoteController::class,'index']);
+    Route::get('/allRequestMaterial',[MaterialRequestController::class,'index']);
+    Route::get('/pendingRequestMaterial',[MaterialRequestController::class,'pendingRequests']);
+    Route::put('/materialRequests/{id}/edit', [MaterialRequestController::class, 'editRequest']);
+    Route::put('/materialRequests/{id}/reject', [MaterialRequestController::class, 'rejectRequest']);
+    Route::put('/materialRequests/{id}/approve', [MaterialRequestController::class, 'approveRequest']);
+
+
 
     //CUSTODY
     Route::post('/custody/store', [CustodyController::class, 'store']);
 
-    //  BUILDINGS
+    //BUILDINGS
     Route::post('/buildings/store', [BuildingController::class, 'store']);
     Route::put('buildings/update/{id}', [BuildingController::class, 'update']);
     Route::delete('buildings/delete/{id}', [BuildingController::class, 'destroy']);
@@ -65,6 +73,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('rooms/update/{id}', [RoomController::class, 'update']);
     Route::delete('rooms/delete/{id}', [RoomController::class, 'destroy']);
     Route::get('/rooms',[RoomController::class,'index']);
+
 });
 
 
