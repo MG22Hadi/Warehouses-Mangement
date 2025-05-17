@@ -9,6 +9,7 @@ class ExitNoteItem extends Model
     protected $fillable = [
         'exit_note_id',
         'product_id',
+        'warehouse_id',
         'quantity',
         'notes'
     ];
@@ -22,4 +23,9 @@ class ExitNoteItem extends Model
     {
         return $this->belongsTo(Product::class);
     }
-} 
+
+    public function warehouse()
+    {
+        return $this->belongsTo(Warehouse::class);
+    }
+}

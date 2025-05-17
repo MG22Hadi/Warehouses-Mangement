@@ -2,11 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Controllers\Controller;
 use App\Models\EntryNote;
-use App\Models\EntryNoteItem;
 use App\Models\ExitNote;
 use App\Models\ExitNoteItem;
+use App\Models\MaterialRequest;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,11 +15,11 @@ class ExitNoteController extends Controller
 {
     use ApiResponse;
 
+    //عرض كل المذكرات
     public function index()
     {
         try {
             $notes = ExitNote::withCount('items') // هنا نستخدم withCount بدلاً of with
-            ->with(['warehouse', 'user'])
                 ->get();
 
             return $this->successResponse($notes, 'تم جلب المذكرات مع عدد الأصناف بنجاح');
@@ -33,12 +32,13 @@ class ExitNoteController extends Controller
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
+            'material_request_id' => 'required|exists:material_requests,id',
             'date' => 'required|date',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
             'items.*.warehouse_id' => 'required|exists:warehouses,id',
             'items.*.quantity' => 'required|numeric|min:0.01',
-            'items.*.notes' => 'nullable|string',
+            'items.*.notes' => 'nullable|string|max:500',
         ]);
 
         if ($validator->fails()) {
@@ -46,58 +46,88 @@ class ExitNoteController extends Controller
         }
 
         try {
-            $result = DB::transaction(function () use ($request) {
-                $serialNumber = $this->generateSerialNumber();
+            $exitNote = null;
 
-                $exitNote = ExitNote::create([
-                    'serial_number' => $serialNumber,
-                    'date' => $request->date,
-                    'created_by' => $request->user()->id,
-                ]);
+            DB::transaction(function () use ($request, &$exitNote) {
+                // جلب طلب المواد مع العناصر والكميات المعتمدة
+                $materialRequest = MaterialRequest::with(['items' => function($query) {
+                    $query->where('quantity_approved', '>', 0);
+                }])->findOrFail($request->material_request_id);
 
-                foreach ($request->items as $item) {
-                    $stock = DB::table('stocks')
-                        ->where('product_id', $item['product_id'])
-                        ->where('warehouse_id', $item['warehouse_id'])
+                if ($materialRequest->status != 'approved') {
+                    throw new \Exception('لا يمكن إنشاء سند خروج لطلب مواد غير معتمد');
+                }
+
+                // التحقق من أن جميع العناصر المراد إخراجها موجودة في طلب المواد
+                $requestItems = collect($request->items);
+                $materialRequestItems = $materialRequest->items;
+
+                foreach ($requestItems as $requestItem) {
+                    $matchingItem = $materialRequestItems->firstWhere('product_id', $requestItem['product_id']);
+
+                    if (!$matchingItem) {
+                        throw new \Exception('المنتج المحدد غير موجود في طلب المواد المعتمد');
+                    }
+
+                    if ($requestItem['quantity'] > $matchingItem->quantity_approved) {
+                        throw new \Exception("الكمية المطلوبة ({$requestItem['quantity']}) للمنتج ID {$requestItem['product_id']} أكبر من الكمية المعتمدة ({$matchingItem->quantity_approved})");
+                    }
+
+                    // التحقق من توفر الكمية في المستودع المحدد
+                    $warehouseStock = DB::table('warehouse_product')
+                        ->where('warehouse_id', $requestItem['warehouse_id'])
+                        ->where('product_id', $requestItem['product_id'])
                         ->first();
 
-                    if (!$stock) {
-                        throw new \Exception("لا يوجد مخزون لهذا المنتج في المستودع المختار.");
+                    if (!$warehouseStock || $warehouseStock->quantity < $requestItem['quantity']) {
+                        throw new \Exception("الكمية غير متوفرة في المستودع للمنتج ID {$requestItem['product_id']}");
                     }
+                }
 
-                    // التحقق من وجود كمية كافية في المخزون
-                    if ($stock->quantity < $item['quantity']) {
-                        throw new \Exception("الكمية المطلوبة (".$item['quantity'].") غير متوفرة في المخزون (الكمية المتاحة: ".$stock->quantity.") للمنتج ID: ".$item['product_id']);
-                    }
+                // إنشاء سند الخروج
+                $exitNote = ExitNote::create([
+                    'material_request_id' => $request->material_request_id,
+                    'created_by' => $request->user()->id,
+                    'serial_number' => $this->generateSerialNumber(),
+                    'date' => $request->date,
+                ]);
 
-                    DB::table('stocks')
-                        ->where('product_id', $item['product_id'])
-                        ->where('warehouse_id', $item['warehouse_id'])
-                        ->increment('quantity', $item['quantity']);
-
+                // إضافة عناصر سند الخروج مع تحديث المخزون
+                foreach ($requestItems as $item) {
                     ExitNoteItem::create([
-                        'entry_note_id' => $exitNote->id,
+                        'exit_note_id' => $exitNote->id,
                         'product_id' => $item['product_id'],
                         'warehouse_id' => $item['warehouse_id'],
                         'quantity' => $item['quantity'],
                         'notes' => $item['notes'] ?? null,
-                        'created_by' => $request->user()->id
                     ]);
+
+                    // تحديث كمية المخزون في المستودع
+                    DB::table('warehouse_product')
+                        ->where('warehouse_id', $item['warehouse_id'])
+                        ->where('product_id', $item['product_id'])
+                        ->decrement('quantity', $item['quantity']);
                 }
 
-                return [
-                    'entry_note' => $exitNote,
-                    'message' => 'تم إنشاء المذكرة بنجاح'
-                ];
+                $materialRequest->update(['status' => 'delivered']);
             });
 
-            return $this->successResponse($result['entry_note'], $result['message'], 201);
+            // إعادة تحميل النموذج مع العلاقات
+            $exitNote = ExitNote::with([
+                'items.product',
+                'items.warehouse',
+                'materialRequest'
+            ])->find($exitNote->id);
+
+            return $this->successResponse(
+                $exitNote,
+                'تم إنشاء سند الخروج بنجاح'
+            );
 
         } catch (\Exception $e) {
             return $this->errorResponse(
-                message: $e->getMessage(),
-                code: 500,
-                errors: ['trace' => $e->getTraceAsString()],
+                message: 'فشل في إنشاء سند الخروج: ' . $e->getMessage(),
+                code: 422,
                 internalCode: 'EXIT_NOTE_CREATION_FAILED'
             );
         }
@@ -121,7 +151,7 @@ class ExitNoteController extends Controller
         $currentYear = date('Y');
 
         // الحصول على آخر مذكرة لهذه السنة
-        $lastEntry = EntryNote::whereYear('created_at', $currentYear)
+        $lastEntry = ExitNote::whereYear('created_at', $currentYear)
             ->orderBy('id', 'desc')
             ->first();
 
