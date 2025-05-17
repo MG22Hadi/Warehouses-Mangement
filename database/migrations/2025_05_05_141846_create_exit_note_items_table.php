@@ -12,6 +12,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('exit_note_id')->constrained('exit_notes')->cascadeOnDelete();
             $table->foreignId('product_id')->constrained('products');
+            $table->foreignId('warehouse_id')->constrained('warehouses');
             $table->decimal('quantity', 10, 2);
             $table->text('notes')->nullable();
             $table->timestamps();

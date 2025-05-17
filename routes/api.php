@@ -2,7 +2,6 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BuildingController;
-use App\Http\Controllers\CalendarNoteController;
 use App\Http\Controllers\CustodyController;
 use App\Http\Controllers\EntryNoteController;
 use App\Http\Controllers\ProductController;
@@ -34,7 +33,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/warehouses/update/{id}', [WarehouseController::class, 'update']);
     Route::delete('/warehouses/destroy/{id}', [WarehouseController::class, 'destroy']);
     Route::get('/warehouses/index', [WarehouseController::class, 'index']);
-    Route::get('warehouses/show/{id}', [WarehouseController::class, 'show']);
 
 
     //    PRODUCTS
@@ -42,7 +40,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('products/update/{id}', [ProductController::class, 'update']);
     Route::delete('products/delete/{id}', [ProductController::class, 'destroy']);
     Route::get('/products',[ProductController::class,'index']);
-    Route::get('products/show/{id}', [ProductController::class, 'show']);
 
     //CUSTODY
     Route::post('/custody/store', [CustodyController::class, 'store']);
@@ -52,7 +49,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('buildings/update/{id}', [BuildingController::class, 'update']);
     Route::delete('buildings/delete/{id}', [BuildingController::class, 'destroy']);
     Route::get('/buildings',[BuildingController::class,'index']);
-    Route::get('buildings/show/{id}', [BuildingController::class, 'show']);
 
 
     //ROOMS
@@ -60,13 +56,5 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('rooms/update/{id}', [RoomController::class, 'update']);
     Route::delete('rooms/delete/{id}', [RoomController::class, 'destroy']);
     Route::get('/rooms',[RoomController::class,'index']);
-    Route::get('rooms/show/{id}', [RoomController::class, 'show']);
-
-    //CALENDAR
-    Route::get('/calendar', [CalendarNoteController::class, 'index']);
-    Route::post('/calendar/store', [CalendarNoteController::class, 'store']);
-    Route::get('/calendar/show/{date}', [CalendarNoteController::class, 'show']);
-    Route::put('/calendar/update/{date}', [CalendarNoteController::class, 'update']);
-    Route::delete('/calendar/destroy/{date}', [CalendarNoteController::class, 'destroy']);
 });
 

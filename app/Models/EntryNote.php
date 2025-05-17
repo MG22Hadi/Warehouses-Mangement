@@ -31,4 +31,10 @@ class EntryNote extends Model
     {
         return $this->hasMany(EntryNoteItem::class);
     }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+
 }

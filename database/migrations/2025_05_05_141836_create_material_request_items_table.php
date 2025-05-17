@@ -14,8 +14,6 @@ return new class extends Migration
             $table->foreignId('product_id')->constrained('products');
             $table->float('quantity_requested', 10, 2);
             $table->float('quantity_approved', 10, 2)->nullable();
-            $table->float('prev_quantity', 10, 2)->nullable();
-            $table->date('prev_date')->nullable();
             $table->text('notes')->nullable();
             $table->timestamps();
         });

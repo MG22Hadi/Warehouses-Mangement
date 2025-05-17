@@ -9,6 +9,7 @@ class EntryNoteItem extends Model
     protected $fillable = [
         'entry_note_id',
         'product_id',
+        'warehouse_id',
         'quantity',
         'notes'
     ];
@@ -22,4 +23,4 @@ class EntryNoteItem extends Model
     {
         return $this->belongsTo(Product::class);
     }
-} 
+}
