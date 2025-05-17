@@ -102,4 +102,23 @@ class WarehouseController extends Controller
         $warehouses=Warehouse::all();
         return $this->successResponse($warehouses,'هذه هي كل المستودعات يا عمي ',201);
     }
+
+    public function show($id)
+    {
+        try {
+            $warehouse = Warehouse::find($id);
+
+            if (!$warehouse) {
+                return $this->notFoundResponse('المستودع غير موجود');
+            }
+
+            return $this->successResponse(
+                ['warehouse' => $warehouse],
+                'تم جلب بيانات المستودع بنجاح',
+                200
+            );
+        } catch (\Exception $e) {
+            return $this->errorResponse('فشل في جلب بيانات المستودع: ' . $e->getMessage(), 500);
+        }
+    }
 }

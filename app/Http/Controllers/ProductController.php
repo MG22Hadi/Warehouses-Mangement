@@ -192,4 +192,25 @@ class ProductController extends Controller
            return $this->handleExceptionResponse($e);
        }
     }
+
+    public function show($id)
+    {
+        try {
+            $product = Product::with(['stocks' => function($query) {
+                $query->select('id', 'product_id', 'warehouse_id', 'quantity');
+            }])->find($id);
+
+            if (!$product) {
+                return $this->notFoundResponse('المنتج غير موجود');
+            }
+
+            return $this->successResponse(
+                ['product' => $product],
+                'تم جلب بيانات المنتج بنجاح',
+                200
+            );
+        } catch (\Exception $e) {
+            return $this->errorResponse('فشل في جلب بيانات المنتج: ' . $e->getMessage(), 500);
+        }
+    }
 }

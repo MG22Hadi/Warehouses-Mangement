@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\CalendarNote;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 class CalendarNoteController extends Controller
@@ -14,7 +16,7 @@ class CalendarNoteController extends Controller
     public function index()
     {
         try{
-            $notes=CalendarNote::orderBy('note_date','asc')->get();
+            $notes=CalendarNote::where('user_id', Auth::id())->get();//orderBy('note_date','asc')->get();
             return $this->successResponse($notes,
                 'تم جلب ملاحظات التقويم بنجاح');
         }catch (\Throwable $e){
@@ -22,25 +24,28 @@ class CalendarNoteController extends Controller
         }
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        //
-    }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
-        //
+        $validator= Validator::make($request->all(),[
+            'note_date'=>'required|date',
+            'noteContent'=>'required|string'
+        ]);
+
+        if($validator->fails()){
+            return $this->validationErrorResponse($validator);
+        }
+        $note = CalendarNote::updateOrCreate(
+            [
+                'note_date' => $request->note_date,
+                'user_id' => Auth::id()
+            ],
+            ['noteContent' => $request->noteContent]
+        );
+        return $this->successResponse($note,'تم حفظ الملاحظة بنجاح',201);
     }
 
-    /**
-     * Display the specified resource.
-     */
+
     public function show($date)
     {
         try {
@@ -54,7 +59,9 @@ class CalendarNoteController extends Controller
             return $this->validationErrorResponse($validator,'تاريخ غير صالح');
         }
 
-            $note = CalendarNote::where('note_date', $date)->first();
+            $note = CalendarNote::where('note_date', $date)
+                ->where('user_id',Auth::id())
+                ->first();
 
             if(!$note){
                 return $this->notFoundResponse('لا توجد ملاحظة لهذا التاريخ');
@@ -65,27 +72,69 @@ class CalendarNoteController extends Controller
         }
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(CalendarNote $calendarNote)
+
+    public function update(Request $request, $date)
     {
-        //
+        DB::beginTransaction();
+        try{
+            $validator= Validator::make($request->all(),[
+                'noteContent'=>'required|string|max:2000'
+            ]);
+
+            if ($validator->fails()){
+                DB::rollBack();
+                return $this->validationErrorResponse($validator);
+            }
+            $note = CalendarNote::where('note_date',$date)
+                ->where('user_id',Auth::id())
+                ->first();
+
+            if(!$note){
+                DB::rollBack();
+                return $this->notFoundResponse('الملاحظة غير موجودة');
+            }
+
+            $note->update(['noteContent'=>$request->noteContent]);
+
+            DB::commit();
+
+            return $this->successResponse($note,'تم تحديث الملاحظة بنجاح',201);
+        }catch (\Throwable $e){
+            DB::rollBack();
+            return $this->handleExceptionResponse($e,'فشل في تحديث الملاحظة');
+        }
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, CalendarNote $calendarNote)
-    {
-        //
-    }
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(CalendarNote $calendarNote)
+    public function destroy($date)
     {
-        //
+        DB::beginTransaction();
+        try {
+            $validator=Validator::make(['date' => $date],[
+                'date'=>'required|date'
+            ]);
+
+            if ($validator->fails()){
+                DB::rollBack();
+                return $this->validationErrorResponse($validator);
+            }
+
+            $note=CalendarNote::where('note_date',$date)
+                   ->where('user_id',Auth::id())
+                   ->first();
+
+            if (!$note){
+                DB::rollBack();
+                return $this->notFoundResponse('الملاحظة غير موجودة');
+            }
+
+            $note->delete();
+            DB::commit();
+
+            return $this->successResponse(null,'تم حذف الملاحظة بنجاح',201);
+        }catch (\Throwable $e) {
+            DB::rollBack();
+            return $this->handleExceptionResponse($e, 'فشل في حذف الملاحظة');
+        }
     }
 }

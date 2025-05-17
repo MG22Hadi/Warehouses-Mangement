@@ -103,6 +103,25 @@ class RoomController extends Controller
             'هذه هي كل الغرف يا عمي ',
             201);
     }
+
+    public function show($id)
+    {
+        try {
+            $room = Room::with('building:id,name')->find($id);
+
+            if (!$room) {
+                return $this->notFoundResponse('الغرفة غير موجودة');
+            }
+
+            return $this->successResponse(
+                ['room' => $room],
+                'تم جلب بيانات الغرفة بنجاح',
+                200
+            );
+        } catch (\Exception $e) {
+            return $this->errorResponse('فشل في جلب بيانات الغرفة: ' . $e->getMessage(), 500);
+        }
+    }
 }
 
 

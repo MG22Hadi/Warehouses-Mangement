@@ -64,4 +64,9 @@ class User extends Authenticatable
     {
         return $this->hasMany(Custody::class);
     }
+
+    public function notes()
+    {
+        return $this->hasMany(CalendarNote::class);
+    }
 }
