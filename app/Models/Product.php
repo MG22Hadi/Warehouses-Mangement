@@ -18,7 +18,7 @@ class Product extends Model
         'consumable' => 'boolean'
     ];
 
-    public function stock()
+    public function stocks()
     {
         return $this->hasMany(Stock::class);
     }
@@ -67,4 +67,4 @@ class Product extends Model
     {
         return $this->hasMany(ProductMovement::class);
     }
-} 
+}

@@ -17,9 +17,49 @@ class CalendarNoteController extends Controller
     {
         try{
             $notes=CalendarNote::where('user_id', Auth::id())->get();//orderBy('note_date','asc')->get();
-            return $this->successResponse($notes,
+            $count= count($notes);
+
+            return $this->successResponse(
+                [ 'notes'=>$notes ,
+                    'count'=>$count ],
                 'تم جلب ملاحظات التقويم بنجاح');
         }catch (\Throwable $e){
+            return $this->handleExceptionResponse($e);
+        }
+    }
+
+    public function indexFilter(Request $request)
+    {
+        try {
+            $query = CalendarNote::where('user_id', Auth::id());
+
+            // فلترة حسب النطاق الزمني إذا وجد
+            if ($request->has('start_date') && $request->has('end_date')) {
+                $query->whereBetween('note_date', [
+                    $request->start_date,
+                    $request->end_date
+                ]);
+            }
+            // أو فلترة حسب شهر وسنة محددين
+            elseif ($request->has('month') && $request->has('year')) {
+                $query->whereMonth('note_date', $request->month)
+                    ->whereYear('note_date', $request->year);
+            }
+
+            //النتائج دائماً مرتبة من الأقدم إلى الأحدث
+            $notes = $query->orderBy('note_date', 'asc')->get();
+            $count = $notes->count();
+
+            return $this->successResponse(
+                [
+                    'notes' => $notes,
+                    'count' => $count,
+                    'filters' => $request->only(['start_date', 'end_date', 'month', 'year'])
+                ],
+                'تم جلب ملاحظات التقويم بنجاح'
+            );
+
+        } catch (\Throwable $e) {
             return $this->handleExceptionResponse($e);
         }
     }

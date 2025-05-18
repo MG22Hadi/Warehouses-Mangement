@@ -11,7 +11,7 @@ class CalendarNote extends Model
 
     protected $fillable = [
         'note_date',
-        'content',
+        'noteContent',
         'user_id'
     ];
 

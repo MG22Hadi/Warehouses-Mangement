@@ -81,7 +81,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('rooms/show/{id}', [RoomController::class, 'show']);
 
     //CALENDAR
-    Route::get('/calendar', [CalendarNoteController::class, 'index']);
+    Route::get('/calendar', [CalendarNoteController::class, 'indexFilter']);
+
     Route::post('/calendar/store', [CalendarNoteController::class, 'store']);
     Route::get('/calendar/show/{date}', [CalendarNoteController::class, 'show']);
     Route::put('/calendar/update/{date}', [CalendarNoteController::class, 'update']);
