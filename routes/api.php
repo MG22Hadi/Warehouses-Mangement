@@ -64,6 +64,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
     //CUSTODY
     Route::post('/custody/store', [CustodyController::class, 'store']);
+    Route::get('/custody/allForUser',[CustodyController::class,'showAllForUser']);
+    Route::get('/custody/specific/{custody}', [CustodyController::class, 'showSpecific']);
+    Route::get('/custody/showAll', [CustodyController::class, 'showAll']);
+    Route::get('/rooms/{room}/custodies', [CustodyController::class, 'showRoomCustodies']);
 
     //BUILDINGS
     Route::post('/buildings/store', [BuildingController::class, 'store']);
@@ -82,7 +86,6 @@ Route::middleware('auth:sanctum')->group(function () {
 
     //CALENDAR
     Route::get('/calendar', [CalendarNoteController::class, 'indexFilter']);
-
     Route::post('/calendar/store', [CalendarNoteController::class, 'store']);
     Route::get('/calendar/show/{date}', [CalendarNoteController::class, 'show']);
     Route::put('/calendar/update/{date}', [CalendarNoteController::class, 'update']);
