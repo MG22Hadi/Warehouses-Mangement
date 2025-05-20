@@ -5,6 +5,7 @@ use App\Http\Controllers\BuildingController;
 use App\Http\Controllers\CustodyController;
 use App\Http\Controllers\EntryNoteController;
 use App\Http\Controllers\ExitNoteController;
+use App\Http\Controllers\InstallationReportController;
 use App\Http\Controllers\MaterialRequestController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\RoomController;
@@ -81,6 +82,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('scrapNotes/{id}/approve', [ScrapNoteController::class, 'approve']);
     Route::put('scrapNotes/{id}/reject', [ScrapNoteController::class, 'reject']);
 
+    // InstallationReport
+    Route::get('/allInstallationReport',[InstallationReportController::class,'index']);
+    Route::get('/InstallationReport/{id}/details',[InstallationReportController::class,'show']);
+    Route::post('/InstallationReport/store', [InstallationReportController::class, 'store']);
 
 });
 
