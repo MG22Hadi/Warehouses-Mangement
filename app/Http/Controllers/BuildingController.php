@@ -100,4 +100,23 @@ class BuildingController extends Controller
             'هذه هي كل المبنيات يا عمي ',
             201);
     }
+
+    public function show($id)
+    {
+        try {
+            $building = Building::find($id);
+
+            if (!$building) {
+                return $this->notFoundResponse('المبنى غير موجود');
+            }
+
+            return $this->successResponse(
+                ['building' => $building],
+                'تم جلب بيانات المبنى بنجاح',
+                200
+            );
+        } catch (\Exception $e) {
+            return $this->errorResponse('فشل في جلب بيانات المبنى: ' . $e->getMessage(), 500);
+        }
+    }
 }

@@ -2,14 +2,18 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Custody;
+use App\Models\CustodyItem;
 use App\Models\EntryNote;
 use App\Models\ExitNote;
 use App\Models\ExitNoteItem;
 use App\Models\MaterialRequest;
+use App\Models\Product;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use mysql_xdevapi\Exception;
 
 class ExitNoteController extends Controller
 {
@@ -28,7 +32,7 @@ class ExitNoteController extends Controller
         }
     }
 
-
+/**
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -132,7 +136,151 @@ class ExitNoteController extends Controller
             );
         }
     }
+**/
 
+    public function store(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'material_request_id' => 'required|exists:material_requests,id',
+            'date' => 'required|date',
+            'items' => 'required|array|min:1',
+            'items.*.product_id' => 'required|exists:products,id',
+            'items.*.warehouse_id' => 'required|exists:warehouses,id',
+            'items.*.quantity' => 'required|numeric|min:0.01',
+            'items.*.notes' => 'nullable|string|max:500',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->validationErrorResponse($validator);
+        }
+
+        try {
+            $exitNote = null;
+            $custody = null;
+            $pendingCustodyItems = [];
+            $requesterId = null; // **جديد:** متغير لتخزين requester_id
+
+            DB::transaction(function () use ($request, &$exitNote, &$custody, &$pendingCustodyItems, &$requesterId) {
+                $materialRequest = MaterialRequest::with([
+                    'requestedBy',
+                    'items' => function($query) {
+                        $query->where('quantity_approved', '>', 0);
+                    }
+                ])->findOrFail($request->material_request_id);
+
+                if ($materialRequest->status != 'approved') {
+                    throw new \Exception('لا يمكن إنشاء سند خروج لطلب مواد غير معتمد.');
+                }
+
+                // **التصحيح الحاسم هنا:**
+                // التأكد من وجود المستخدم الذي طلب المواد قبل المتابعة.
+                // إذا لم يكن موجوداً، نقوم بإطلاق استثناء.
+                if (!$materialRequest->requestedBy) {
+                    throw new \Exception('المستخدم الذي طلب المواد غير موجود أو غير مرتبط بطلب المواد. يرجى التحقق من تكامل البيانات.');
+                }
+                // **بعد هذا التحقق، يمكننا تخزين requester_id بأمان**
+                $requesterId = $materialRequest->requestedBy->id;
+
+
+                $requestItems = collect($request->items);
+                $materialRequestItems = $materialRequest->items;
+
+                // إنشاء سند الخروج أولاً
+                $exitNote = ExitNote::create([
+                    'material_request_id' => $request->material_request_id,
+                    'created_by' => $request->user()->id,
+                    'serial_number' => $this->generateSerialNumber(),
+                    'date' => $request->date,
+                ]);
+
+                foreach ($requestItems as $item) {
+                    $matchingItem = $materialRequestItems->firstWhere('product_id', $item['product_id']);
+
+                    if (!$matchingItem) {
+                        throw new \Exception('المنتج ID ' . $item['product_id'] . ' المحدد غير موجود في طلب المواد المعتمد.');
+                    }
+
+                    if ($item['quantity'] > $matchingItem->quantity_approved) {
+                        throw new \Exception("الكمية المطلوبة ({$item['quantity']}) للمنتج ID {$item['product_id']} أكبر من الكمية المعتمدة ({$matchingItem->quantity_approved}).");
+                    }
+
+                    $warehouseStock = DB::table('stocks')
+                        ->where('warehouse_id', $item['warehouse_id'])
+                        ->where('product_id', $item['product_id'])
+                        ->first();
+
+                    if (!$warehouseStock || $warehouseStock->quantity < $item['quantity']) {
+                        throw new \Exception("الكمية غير متوفرة في المستودع المحدد للمنتج ID {$item['product_id']}.");
+                    }
+
+                    // إنشاء عنصر سند الخروج
+                    ExitNoteItem::create([
+                        'exit_note_id' => $exitNote->id,
+                        'product_id' => $item['product_id'],
+                        'warehouse_id' => $item['warehouse_id'],
+                        'quantity' => $item['quantity'],
+                        'notes' => $item['notes'] ?? null,
+                    ]);
+
+                    // تحديث كمية المخزون
+                    DB::table('stocks')
+                        ->where('warehouse_id', $item['warehouse_id'])
+                        ->where('product_id', $item['product_id'])
+                        ->decrement('quantity', $item['quantity']);
+
+                    $product = Product::findOrFail($item['product_id']);
+
+                    if (!$product->consumable) {
+                        if (!$custody) {
+                            $custody = Custody::create([
+                                'user_id' => $requesterId, // **استخدام requesterId الذي تم التحقق منه مسبقاً**
+                                'date' => $exitNote->date,
+                                'notes' => 'عهدة تلقائية للمواد غير المستهلكة من سند الإخراج رقم: ' . $exitNote->serial_number,
+                            ]);
+                        }
+
+                        $custodyItem = CustodyItem::create([
+                            'custody_id' => $custody->id,
+                            'product_id' => $item['product_id'],
+                            'exit_note_id' => $exitNote->id,
+                            'quantity' => $item['quantity'],
+                            'notes' => $item['notes'] ?? null,
+                            'room_id' => null,
+                        ]);
+                        $pendingCustodyItems[] = $custodyItem->load('product');
+                    }
+                }
+
+                $materialRequest->update(['status' => 'delivered']);
+            });
+
+            // إعادة تحميل سند الإخراج بعد انتهاء الـ transaction
+            // لا نحتاج لتحميل materialRequest.requestedBy هنا مرة أخرى لأننا لدينا requesterId
+            $exitNote = ExitNote::with([
+                'items.product',
+                'items.warehouse',
+                'materialRequest' // نكتفي بتحميل materialRequest هنا إذا أردت تفاصيلها
+            ])->find($exitNote->id);
+
+            // الاستجابة النهائية
+            return $this->successResponse(
+                [
+                    'exit_note' => $exitNote,
+                    'pending_custody_items' => $pendingCustodyItems,
+                    'requester_id' => $requesterId // **استخدام requesterId الذي تم تخزينه بأمان**
+                ],
+                'تم إنشاء سند الخروج بنجاح. يرجى تحديد الغرف للمواد غير المستهلكة.'
+            );
+
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return $this->errorResponse(
+                message: 'فشل في إنشاء سند الخروج: ' . $e->getMessage(),
+                code: 422,
+                internalCode: 'EXIT_NOTE_CREATION_FAILED'
+            );
+        }
+    }
 
     // إظهار مذكرة محددة
     public function show($id)

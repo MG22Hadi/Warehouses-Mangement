@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BuildingController;
+use App\Http\Controllers\CalendarNoteController;
 use App\Http\Controllers\CustodyController;
 use App\Http\Controllers\EntryNoteController;
 use App\Http\Controllers\ExitNoteController;
@@ -44,6 +45,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/warehouses/update/{id}', [WarehouseController::class, 'update']);
     Route::delete('/warehouses/destroy/{id}', [WarehouseController::class, 'destroy']);
     Route::get('/warehouses/index', [WarehouseController::class, 'index']);
+    Route::get('warehouses/show/{id}', [WarehouseController::class, 'show']);
 
 
     //    PRODUCTS
@@ -51,6 +53,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('products/update/{id}', [ProductController::class, 'update']);
     Route::delete('products/delete/{id}', [ProductController::class, 'destroy']);
     Route::get('/products',[ProductController::class,'index']);
+    Route::get('products/show/{id}', [ProductController::class, 'show']);
+
 
     //MATERIAL REQUEST
     Route::post('/MRequest',[MaterialRequestController::class,'store']);
@@ -61,19 +65,41 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/materialRequests/{id}/approve', [MaterialRequestController::class, 'approveRequest']);
 
     //CUSTODY
+    // إنشاء عهدة بشكل يدوي
     Route::post('/custody/store', [CustodyController::class, 'store']);
+    // عرض كل عهد شخص ما
+    Route::get('/custody/allForUser',[CustodyController::class,'showAllForUser']);
+    //عرض عهدة محددة
+    Route::get('/custody/specific/{custody}', [CustodyController::class, 'showSpecific']);
+    // عرض كل العهد في جدول العهد
+    Route::get('/custody/showAll', [CustodyController::class, 'showAll']);
+    // عرض كل العهد الموجودة في غرفة ما
+    Route::get('/rooms/{roomId}/custodies', [CustodyController::class, 'showRoomCustodies']);
+    // جلب غرف شخص ما
+    Route::get('/users/{user}/rooms', [CustodyController::class, 'getSpecificUserRooms']);
+    // اسناد أغراض إلى غرف
+    Route::post('/custody-items/assign-rooms-bulk', [CustodyController::class, 'assignRoomsToCustodyItems']);
 
     //BUILDINGS
     Route::post('/buildings/store', [BuildingController::class, 'store']);
     Route::put('buildings/update/{id}', [BuildingController::class, 'update']);
     Route::delete('buildings/delete/{id}', [BuildingController::class, 'destroy']);
     Route::get('/buildings',[BuildingController::class,'index']);
+    Route::get('buildings/show/{id}', [BuildingController::class, 'show']);
 
     //ROOMS
     Route::post('/rooms/store', [RoomController::class, 'store']);
     Route::put('rooms/update/{id}', [RoomController::class, 'update']);
     Route::delete('rooms/delete/{id}', [RoomController::class, 'destroy']);
     Route::get('/rooms',[RoomController::class,'index']);
+    Route::get('rooms/show/{id}', [RoomController::class, 'show']);
+
+    //CALENDAR
+    Route::get('/calendar', [CalendarNoteController::class, 'indexFilter']);
+    Route::post('/calendar/store', [CalendarNoteController::class, 'store']);
+    Route::get('/calendar/show/{date}', [CalendarNoteController::class, 'show']);
+    Route::put('/calendar/update/{date}', [CalendarNoteController::class, 'update']);
+    Route::delete('/calendar/destroy/{date}', [CalendarNoteController::class, 'destroy']);
 
     //Scrap Note
     Route::get('/allScrapNote',[ScrapNoteController::class,'index']);
@@ -91,5 +117,3 @@ Route::middleware('auth:sanctum')->group(function () {
 
 
 });
-
-

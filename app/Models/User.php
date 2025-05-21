@@ -64,4 +64,14 @@ class User extends Authenticatable
     {
         return $this->hasMany(Custody::class);
     }
+
+    public function notes()
+    {
+        return $this->hasMany(CalendarNote::class);
+    }
+
+    public function ownedRooms()
+    {
+        return $this->hasMany(Room::class, 'user_id');
+    }
 }

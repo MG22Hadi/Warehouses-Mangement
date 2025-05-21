@@ -10,6 +10,7 @@ class CustodyItem extends Model
         'custody_id',
         'product_id',
         'exit_note_id',
+        'room_id',
         'quantity',
         'notes'
     ];
@@ -28,6 +29,15 @@ class CustodyItem extends Model
     {
         return $this->belongsTo(ExitNote::class);
     }
+
+    /****
+     *
+     */
+    public function room()
+    {
+        return $this->belongsTo(Room::class);
+    }
+
 
     public function returns()
     {

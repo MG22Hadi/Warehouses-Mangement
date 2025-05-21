@@ -11,8 +11,14 @@ class CalendarNote extends Model
 
     protected $fillable = [
         'note_date',
-        'content'
+        'noteContent',
+        'user_id'
     ];
 
     protected $dates = ['note_date'];
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
 }
