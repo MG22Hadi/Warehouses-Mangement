@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('installation_reports', function (Blueprint $table) {
             $table->id();
             $table->foreignId('created_by')->constrained('warehouse_keepers');
-            $table->foreignId('approved_by')->constrained('managers');
+            $table->foreignId('approved_by')->nullable()->constrained('managers');
             $table->string('serial_number')->unique();
             $table->text('location');
             $table->enum('type', ['purchase', 'stock_usage']);

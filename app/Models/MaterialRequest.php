@@ -9,6 +9,7 @@ class MaterialRequest extends Model
     protected $fillable = [
         'requested_by',
         'warehouse_keeper_id',
+        'manager_id',
         'serial_number',
         'status',
         'date'

@@ -78,7 +78,7 @@ class ExitNoteController extends Controller
                     }
 
                     // التحقق من توفر الكمية في المستودع المحدد
-                    $warehouseStock = DB::table('warehouse_product')
+                    $warehouseStock = DB::table('stocks')
                         ->where('warehouse_id', $requestItem['warehouse_id'])
                         ->where('product_id', $requestItem['product_id'])
                         ->first();
@@ -107,7 +107,7 @@ class ExitNoteController extends Controller
                     ]);
 
                     // تحديث كمية المخزون في المستودع
-                    DB::table('warehouse_product')
+                    DB::table('stocks')
                         ->where('warehouse_id', $item['warehouse_id'])
                         ->where('product_id', $item['product_id'])
                         ->decrement('quantity', $item['quantity']);
@@ -286,7 +286,7 @@ class ExitNoteController extends Controller
     public function show($id)
     {
         try {
-            $note = ExitNote::with(['items.product', 'warehouse', 'user'])->findOrFail($id);
+            $note = ExitNote::findOrFail($id);
             return $this->successResponse($note, 'تم جلب المذكرة بنجاح');
         } catch (\Exception $e) {
             return $this->handleExceptionResponse($e, 'المذكرة غير موجودة');

@@ -11,10 +11,12 @@ return new class extends Migration
         Schema::create('scrap_notes', function (Blueprint $table) {
             $table->id();
             $table->foreignId('created_by')->constrained('warehouse_keepers');
-            $table->foreignId('approved_by')->constrained('managers');
+            $table->foreignId('approved_by')->nullable()->constrained('managers');
             $table->string('serial_number')->unique();
             $table->text('reason')->nullable();
             $table->date('date');
+            $table->string('status')->default('pending'); // pending, approved, rejected
+            $table->text('rejection_reason')->nullable();
             $table->text('notes')->nullable();
             $table->timestamps();
         });

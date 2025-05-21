@@ -12,12 +12,23 @@ class ScrapNote extends Model
         'serial_number',
         'reason',
         'date',
-        'notes'
+        'notes',
+        'status',
+        'rejection_reason'
     ];
 
     protected $casts = [
         'date' => 'date'
     ];
+
+    const STATUS_PENDING = 'pending';
+    const STATUS_APPROVED = 'approved';
+    const STATUS_REJECTED = 'rejected';
+
+    public function materials()
+    {
+        return $this->hasMany(ScrappedMaterial::class, 'scrap_note_id');
+    }
 
     public function createdBy()
     {
@@ -29,8 +40,4 @@ class ScrapNote extends Model
         return $this->belongsTo(Manager::class, 'approved_by');
     }
 
-    public function scrappedMaterials()
-    {
-        return $this->hasMany(ScrappedMaterial::class);
-    }
-} 
+}

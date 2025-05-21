@@ -4,6 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\EntryNote;
 use App\Models\EntryNoteItem;
+use App\Models\ExitNote;
+use App\Models\Product;
+use App\Models\ProductMovement;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Traits\ApiResponse;
@@ -19,8 +22,8 @@ class EntryNoteController extends Controller
     {
         try {
             $notes = EntryNote::withCount('items') // هنا نستخدم withCount بدلاً of with
-            ->with(['warehouse', 'user'])
-                ->get();
+
+            ->with(['warehouse', 'user'])->get();
 
             return $this->successResponse($notes, 'تم جلب المذكرات مع عدد الأصناف بنجاح');
         } catch (\Exception $e) {
@@ -46,6 +49,7 @@ class EntryNoteController extends Controller
 
         try {
             $result = DB::transaction(function () use ($request) {
+
                 $serialNumber = $this->generateSerialNumber();
 
                 $entryNote = EntryNote::create([
@@ -68,7 +72,7 @@ class EntryNoteController extends Controller
                     DB::table('stocks')
                         ->where('product_id', $item['product_id'])
                         ->where('warehouse_id', $item['warehouse_id'])
-                        ->decrement('quantity', $item['quantity']);
+                        ->increment('quantity', $item['quantity']);
 
                     EntryNoteItem::create([
                         'entry_note_id' => $entryNote->id,
@@ -77,6 +81,19 @@ class EntryNoteController extends Controller
                         'quantity' => $item['quantity'],
                         'notes' => $item['notes'] ?? null,
                         'created_by' => $request->user()->id
+                    ]);
+
+
+
+                    // إنشاء الحركة
+                    $movement = ProductMovement::create([
+                        'product_id' => $item['product_id'],
+                        'type' => 'entry',
+                        'reference_serial' =>$serialNumber,
+                        'prv_quantity' => $stock->quantity,
+                        'note_quantity' =>  $item['quantity'],
+                        'after_quantity' => $stock->quantity+$item['quantity'],
+                        'date' => $request->date,
                     ]);
                 }
 
@@ -103,7 +120,7 @@ class EntryNoteController extends Controller
     public function show($id)
     {
         try {
-            $note = EntryNote::with(['items.product', 'warehouse', 'user'])->findOrFail($id);
+            $note = EntryNote::findOrFail($id);
             return $this->successResponse($note, 'تم جلب المذكرة بنجاح');
         } catch (\Exception $e) {
             return $this->handleExceptionResponse($e, 'المذكرة غير موجودة');

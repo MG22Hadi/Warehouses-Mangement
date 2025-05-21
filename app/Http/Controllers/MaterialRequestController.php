@@ -50,6 +50,14 @@ class MaterialRequestController extends Controller
                 // توليد الرقم التسلسلي
                 $serialNumber = 'MR-' . date('YmdHis') . '-' . Str::random(4);
 
+                if (!DB::table('users')->where('id', $request->user()->id)->exists()) {
+                    return $this->errorResponse(
+                        message: 'المستخدم الحالي غير موجود في جدول users',
+                        code: 422,
+                        internalCode: 'USER_NOT_FOUND'
+                    );
+                }
+
                 $materialRequest = MaterialRequest::create([
                     'requested_by' => $request->user()->id,
                     'warehouse_keeper_id' => $request->warehouse_keeper_id,
