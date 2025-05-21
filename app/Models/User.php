@@ -69,4 +69,9 @@ class User extends Authenticatable
     {
         return $this->hasMany(CalendarNote::class);
     }
+
+    public function ownedRooms()
+    {
+        return $this->hasMany(Room::class, 'user_id');
+    }
 }

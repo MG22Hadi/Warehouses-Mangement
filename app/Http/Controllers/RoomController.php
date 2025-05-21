@@ -17,6 +17,7 @@ class RoomController extends Controller
     {
         $validator = validator($request->all(), [
             'building_id' => 'required|exists:buildings,id',
+            'user_id'=>'nullable|exists:users,id',
             'room_code' => 'required|unique:rooms,room_code',
             'description' => 'nullable|string'
         ]);
@@ -29,6 +30,7 @@ class RoomController extends Controller
         try {
             $room = Room::create([
                 'building_id' => $request->building_id,
+                'user_id' => $request->user_id,
                 'room_code' => $request->room_code,
                 'description' => $request->description ?? null,
             ]);

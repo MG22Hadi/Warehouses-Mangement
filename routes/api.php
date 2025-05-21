@@ -63,11 +63,20 @@ Route::middleware('auth:sanctum')->group(function () {
 
 
     //CUSTODY
+    // إنشاء عهدة بشكل يدوي
     Route::post('/custody/store', [CustodyController::class, 'store']);
+    // عرض كل عهد شخص ما
     Route::get('/custody/allForUser',[CustodyController::class,'showAllForUser']);
+    //عرض عهدة محددة
     Route::get('/custody/specific/{custody}', [CustodyController::class, 'showSpecific']);
+    // عرض كل العهد في جدول العهد
     Route::get('/custody/showAll', [CustodyController::class, 'showAll']);
-    Route::get('/rooms/{room}/custodies', [CustodyController::class, 'showRoomCustodies']);
+    // عرض كل العهد الموجودة في غرفة ما
+    Route::get('/rooms/{roomId}/custodies', [CustodyController::class, 'showRoomCustodies']);
+    // جلب غرف شخص ما
+    Route::get('/users/{user}/rooms', [CustodyController::class, 'getSpecificUserRooms']);
+    // اسناد أغراض إلى غرف
+    Route::post('/custody-items/assign-rooms-bulk', [CustodyController::class, 'assignRoomsToCustodyItems']);
 
     //BUILDINGS
     Route::post('/buildings/store', [BuildingController::class, 'store']);

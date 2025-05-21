@@ -5,16 +5,19 @@ namespace App\Http\Controllers;
 use App\Models\Custody;
 use App\Models\CustodyItem;
 use App\Models\Room;
+use App\Models\User;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
 use App\Traits\ApiResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 
 
 class CustodyController extends Controller
 {
     use ApiResponse;
 
+    // يدوي
     public function store(Request $request)
     {
         $validator= validator($request->all(),[
@@ -62,6 +65,7 @@ class CustodyController extends Controller
         }
     }
 
+    // عرض كل عهد شخص ما
     public function showAllForUser(Request $request)
     {
        $user=$request->user();
@@ -76,6 +80,7 @@ class CustodyController extends Controller
         return $this->successResponse($custodies, 'تم استرداد العهد بنجاح.');
     }
 
+    // عرض عهدة محددة
     public function showSpecific(Request $request, $custodyId)
     {
         $user = $request->user();
@@ -83,11 +88,11 @@ class CustodyController extends Controller
         try {
             $custody = Custody::with('items.product')
                 ->where('id', $custodyId)
-                ->where('user_id', $user->id) // تأكد من أن المستخدم المصادق عليه هو صاحب العهدة
+                //->where('user_id', $user->id) // تأكد من أن المستخدم المصادق عليه هو صاحب العهدة
                 ->get();
 
             if ($custody->isEmpty()) {
-                return $this->notFoundResponse('العهدة غير موجودة أو لا تملك صلاحية عرضها.');
+                return $this->notFoundResponse('العهدة غير موجودة أو لا تملك صلاحية عرضهاn.');
             }
 
             return $this->successResponse($custody, 'تم استرداد العهدة بنجاح.');
@@ -122,39 +127,153 @@ class CustodyController extends Controller
         return $this->successResponse($allCustodies, 'تم استرداد جميع العهد بنجاح.');
     }
 
-    public function showRoomCustodies(Request $request, Room $room)
+    // عرض عهد غرفة ما
+    public function showRoomCustodies(Request $request, int $roomId) // هنا التغيير
     {
-        // إذا كنت تريد تطبيق صلاحيات هنا (مثلاً، فقط المسؤولون يمكنهم رؤية عهد الغرف)
-        // $user = $request->user();
-        // if (!$user->isAdmin) {
-        //     return $this->unauthorizedResponse('ليس لديك صلاحية لعرض عهد هذه الغرفة.');
-        // }
+        // **(اختياري) تطبيق الصلاحيات:**
+//        $user = $request->user();
+//        if (!$user || (!property_exists($user, 'is_warehouse_manager') || !$user->is_warehouse_manager) && !$user->isAdmin) {
+//            return $this->unauthorizedResponse('ليس لديك صلاحية لعرض عهد هذه الغرفة.');
+//        }
 
         try {
-            $custodies = Custody::with([
-                'room.building', // جلب الغرفة والمبنى المرتبط بها
-                'user',          // جلب المستخدم صاحب العهدة
-                'items.product'  // جلب عناصر العهدة والمنتجات المرتبطة بها
+            // **البحث اليدوي عن الغرفة:**
+            $room = Room::find($roomId); // البحث عن الغرفة بالـ ID
+
+            if (!$room) {
+                // إذا لم يتم العثور على الغرفة، أرجع استجابة خطأ مخصصة
+                return $this->notFoundResponse('لا توجد غرفة بهذا المعرف (ID).', 404);
+            }
+
+            // بقية الكود يبقى كما هو تقريباً، لكن الآن تستخدم $room بدلاً من $roomId مباشرةً
+            $custodyItems = CustodyItem::with([
+                'product',
+                'custody.user',
+                'exitNote'
             ])
-                ->where('room_id', $room->id)
+                ->where('room_id', $room->id) // استخدام $room->id
                 ->get();
 
-
-            if ($custodies->isEmpty()) {
+            if ($custodyItems->isEmpty()) {
                 return $this->successResponse(null, 'لا توجد أي عهد مسجلة لهذه الغرفة حالياً.', 200);
             }
 
-            // إرجاع البيانات
-            return $this->successResponse($custodies, 'تم استرداد عهد الغرفة بنجاح.', 200);
+            return $this->successResponse([
+                'room' => $room->load('building'),
+                'custody_items' => $custodyItems
+            ], 'تم استرداد عهد الغرفة بنجاح.', 200);
 
+        } catch (\Throwable $e) {
+            return $this->errorResponse(
+                message: 'فشل في استرداد عهد الغرفة: ' . $e->getMessage(),
+                code: 500,
+                internalCode: 'ROOM_CUSTODY_RETRIEVAL_FAILED'
+            );
         }
-//        catch (ModelNotFoundException $e) {
-            // هذا الخطأ لن يحدث هنا لأن Model Binding يعالج عدم وجود الغرفة
-//             ولكن يمكن استخدامه إذا كنت لا تستخدم Model Binding وتستدعي findOrFail() يدوياً
-//            return $this->notFoundResponse('الغرفة غير موجودة.', 404);
+    }
+
+    public function getSpecificUserRooms(Request $request, User $user)
+    {
+        $warehouseManager = $request->user();
+
+        // **التحقق من صلاحية أمين المستودع:**
+        // يجب أن يكون المستخدم المصادق عليه هو أمين مستودع.
+        // (افترض أن لديك حقل 'is_warehouse_manager' أو نظام صلاحيات مثل Spatie)
+//        if (!$warehouseManager || !property_exists($warehouseManager, 'is_warehouse_manager') || !$warehouseManager->is_warehouse_manager) {
+//            // أو: if (!$warehouseManager->hasRole('warehouse_manager')) {
+//            return $this->unauthorizedResponse('ليس لديك صلاحية لعرض غرف المستخدمين الآخرين.');
 //        }
-        catch (\Throwable $e) {
-            return $this->handleExceptionResponse($e);
+
+
+
+
+
+        // جلب الغرف التي يمتلكها المستخدم المحدد (user_id في جدول rooms)
+        // وتحميل علاقة المبنى لكل غرفة.
+        $rooms = $user->ownedRooms()->with('building')->get(); // **مهم:** تأكد أن `ownedRooms` معرفة في نموذج `User`
+
+        if ($rooms->isEmpty()) {
+            return $this->successResponse(null, 'هذا المستخدم ليس لديه أي غرف مسجلة باسمه حالياً.', 200);
+        }
+
+        return $this->successResponse($rooms, 'تم استرداد غرف المستخدم بنجاح.', 200);
+    }
+
+    public function assignRoomsToCustodyItems(Request $request)
+    {
+        //$warehouseManager = $request->user();
+
+        // **التحقق من صلاحية أمين المستودع:**
+//        if (!$warehouseManager || !property_exists($warehouseManager, 'is_warehouse_manager') || !$warehouseManager->is_warehouse_manager) {
+//            return $this->unauthorizedResponse('ليس لديك صلاحية لتعيين الغرف للعهد.');
+//        }
+
+        // **Validator للبيانات المستلمة:**
+        $validator = Validator::make($request->all(), [
+            'requester_id' => 'required|exists:users,id', // ID للمستخدم الذي طلب المواد (صاحب العهدة)
+            'assignments' => 'required|array|min:1', // مصفوفة من التعيينات
+            'assignments.*.custody_item_id' => 'required|exists:custody_items,id', // ID لعنصر العهدة
+            'assignments.*.room_id' => [ // ID للغرفة (يمكن أن يكون null لإزالة التعيين أو تركه غير معين)
+                'nullable', // يمكن أن يكون null
+                'exists:rooms,id', // يجب أن تكون الغرفة موجودة في جدول الغرف إذا لم تكن null
+            ],
+        ]);
+
+        if ($validator->fails()) {
+            return $this->validationErrorResponse($validator);
+        }
+
+        // جلب المستخدم الذي طلب المواد (صاحب العهدة)
+        $requester = User::find($request->requester_id);
+        if (!$requester) {
+            return $this->notFoundResponse('المستخدم الذي طلب المواد غير موجود.');
+        }
+
+        // جلب جميع الغرف التي يمتلكها الـ requester لتحقيق الأمن والتحقق
+        // **ملاحظة:** تأكد أن `ownedRooms` معرفة في نموذج `User`
+        $requesterOwnedRoomIds = $requester->ownedRooms->pluck('id')->toArray();
+
+        DB::beginTransaction();
+        try {
+            $updatedCustodyItems = collect();
+
+            foreach ($request->assignments as $assignment) {
+                $custodyItem = CustodyItem::with('custody')->findOrFail($assignment['custody_item_id']);
+
+                // **التحقق من أن عنصر العهدة هذا ينتمي بالفعل إلى العهدة الصحيحة (صاحب العهدة)**
+                // هذا يمنع أمين المستودع من تعيين غرفة لعهدة ليست تابعة للمستخدم المستهدف
+                if ($custodyItem->custody->user_id !== $requester->id) {
+                    throw new \Exception("عنصر العهدة ID {$custodyItem->id} لا ينتمي إلى المستخدم المطلوب ID {$requester->id}.");
+                }
+
+                $roomId = $assignment['room_id'];
+
+                // **التحقق من أن الغرفة إذا تم تحديدها، فهي من الغرف التي يمتلكها الـ requester**
+                if ($roomId !== null && !in_array($roomId, $requesterOwnedRoomIds)) {
+                    throw new \Exception("الغرفة ID {$roomId} لا تنتمي إلى المستخدم الذي طلب المواد ({$requester->name}).");
+                }
+
+                // تحديث room_id لعنصر العهدة
+                $custodyItem->update(['room_id' => $roomId]);
+
+                // تحميل العلاقات المطلوبة لعنصر العهدة المحدث لإرجاعه في الاستجابة
+                $updatedCustodyItems->push($custodyItem->load('product', 'room.building'));
+            }
+
+            DB::commit(); // تأكيد جميع التغييرات
+
+            return $this->successResponse(
+                $updatedCustodyItems,
+                'تم تعيين الغرف لعناصر العهدة بنجاح.'
+            );
+
+        } catch (\Throwable $e) {
+            DB::rollBack(); // التراجع عن جميع التغييرات في حالة حدوث خطأ
+            return $this->errorResponse(
+                message: 'فشل في تعيين الغرف لعناصر العهدة: ' . $e->getMessage(),
+                code: 422, // Unprocessable Entity للإشارة إلى خطأ منطقي في البيانات المدخلة
+                internalCode: 'ASSIGN_ROOMS_BULK_FAILED'
+            );
         }
     }
 }
