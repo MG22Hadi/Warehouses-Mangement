@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\EntryNote;
 use App\Models\EntryNoteItem;
 use App\Models\ExitNote;
+use App\Models\Product;
+use App\Models\ProductMovement;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Traits\ApiResponse;
@@ -47,6 +49,7 @@ class EntryNoteController extends Controller
 
         try {
             $result = DB::transaction(function () use ($request) {
+
                 $serialNumber = $this->generateSerialNumber();
 
                 $entryNote = EntryNote::create([
@@ -78,6 +81,19 @@ class EntryNoteController extends Controller
                         'quantity' => $item['quantity'],
                         'notes' => $item['notes'] ?? null,
                         'created_by' => $request->user()->id
+                    ]);
+
+
+
+                    // إنشاء الحركة
+                    $movement = ProductMovement::create([
+                        'product_id' => $item['product_id'],
+                        'type' => 'entry',
+                        'reference_serial' =>$serialNumber,
+                        'prv_quantity' => $stock->quantity,
+                        'note_quantity' =>  $item['quantity'],
+                        'after_quantity' => $stock->quantity+$item['quantity'],
+                        'date' => $request->date,
                     ]);
                 }
 

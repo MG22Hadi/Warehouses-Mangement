@@ -87,6 +87,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/InstallationReport/{id}/details',[InstallationReportController::class,'show']);
     Route::post('/InstallationReport/store', [InstallationReportController::class, 'store']);
 
+    // product Movement
+
+
 });
 
 
