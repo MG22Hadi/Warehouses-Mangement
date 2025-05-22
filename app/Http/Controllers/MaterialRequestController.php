@@ -133,11 +133,15 @@ class MaterialRequestController extends Controller
     public function approveRequest($id){
         try{
             $materialRequest=MaterialRequest::findOrFail($id);
-//             التحقق من أن الطلب في حالة انتظار
+                //             التحقق من أن الطلب في حالة انتظار
                 if ($materialRequest->status != 'pending') {
                     throw new \Exception('لا يمكن الموافقة على طلب غير معلق');
                 }
-                $materialRequest->update(['status' => 'approved']);
+                $q=$materialRequest->quantity_requested;
+
+                $materialRequest->update(['status' => 'approved',
+                                        'quantity_approved'=>$q]);
+
             return $this->successResponse($materialRequest,'تم الموافقة على الطلب',201);
         }catch (\Exception $e){
             return $this->errorResponse(

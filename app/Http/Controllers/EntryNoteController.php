@@ -89,7 +89,7 @@ class EntryNoteController extends Controller
                     $movement = ProductMovement::create([
                         'product_id' => $item['product_id'],
                         'type' => 'entry',
-                        'reference_serial' =>$serialNumber,
+                        'reference_serial' =>$this->generateSerialNumberPM(),
                         'prv_quantity' => $stock->quantity,
                         'note_quantity' =>  $item['quantity'],
                         'after_quantity' => $stock->quantity+$item['quantity'],
@@ -134,6 +134,40 @@ class EntryNoteController extends Controller
 
         // الحصول على آخر مذكرة لهذه السنة
         $lastEntry = EntryNote::whereYear('created_at', $currentYear)
+            ->orderBy('id', 'desc')
+            ->first();
+
+        // تحديد الأرقام الجديدة
+        if (!$lastEntry) {
+            // أول مذكرة في السنة
+            $folderNumber = 1;
+            $noteNumber = 1;
+        } else {
+            // فك الترميز من السيريال السابق
+            $serial = trim($lastEntry->serial_number, '()');
+            list($lastFolderNumber, $lastNoteNumber) = explode('/', $serial);
+
+            $lastFolderNumber = (int)$lastFolderNumber;
+            $lastNoteNumber = (int)$lastNoteNumber;
+
+            // حساب الأرقام الجديدة
+            $noteNumber = $lastNoteNumber + 1;
+            $folderNumber = $lastFolderNumber;
+
+            if ($noteNumber % 50 == 1 && $noteNumber > 50) {
+                $folderNumber = floor($noteNumber / 50) + 1;
+            }
+        }
+
+        return "($folderNumber/$noteNumber)";
+    }
+
+    private function generateSerialNumberPM(): string
+    {
+        $currentYear = date('Y');
+
+        // الحصول على آخر مذكرة لهذه السنة
+        $lastEntry = ProductMovement::whereYear('created_at', $currentYear)
             ->orderBy('id', 'desc')
             ->first();
 
