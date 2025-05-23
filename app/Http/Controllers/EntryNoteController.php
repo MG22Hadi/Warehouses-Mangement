@@ -49,8 +49,8 @@ class EntryNoteController extends Controller
 
         try {
             $result = DB::transaction(function () use ($request) {
-
                 $serialNumber = $this->generateSerialNumber();
+                $pmSerialNumber = $this->generateSerialNumberPM();
 
                 $entryNote = EntryNote::create([
                     'serial_number' => $serialNumber,
@@ -68,12 +68,13 @@ class EntryNoteController extends Controller
                         throw new \Exception("لا يوجد مخزون لهذا المنتج في المستودع المختار.");
                     }
 
-
+                    // تحديث المخزون أولاً
                     DB::table('stocks')
                         ->where('product_id', $item['product_id'])
                         ->where('warehouse_id', $item['warehouse_id'])
                         ->increment('quantity', $item['quantity']);
 
+                    // إنشاء عنصر مذكرة الدخول
                     EntryNoteItem::create([
                         'entry_note_id' => $entryNote->id,
                         'product_id' => $item['product_id'],
@@ -83,17 +84,20 @@ class EntryNoteController extends Controller
                         'created_by' => $request->user()->id
                     ]);
 
-
-
-                    // إنشاء الحركة
-                    $movement = ProductMovement::create([
+                    // إنشاء حركة المنتج
+                    ProductMovement::create([
                         'product_id' => $item['product_id'],
+                        'warehouse_id' => $item['warehouse_id'],
                         'type' => 'entry',
-                        'reference_serial' =>$this->generateSerialNumberPM(),
+                        'reference_serial' => $pmSerialNumber,
                         'prv_quantity' => $stock->quantity,
-                        'note_quantity' =>  $item['quantity'],
-                        'after_quantity' => $stock->quantity+$item['quantity'],
+                        'note_quantity' => $item['quantity'],
+                        'after_quantity' => $stock->quantity + $item['quantity'],
                         'date' => $request->date,
+                        'reference_type' => 'EntryNote',
+                        'reference_id' => $entryNote->id,
+                        'user_id' => $request->user()->id,
+                        'notes' => $item['notes'] ?? 'إدخال من سند رقم: ' . $serialNumber,
                     ]);
                 }
 
@@ -107,9 +111,8 @@ class EntryNoteController extends Controller
 
         } catch (\Exception $e) {
             return $this->errorResponse(
-                message: $e->getMessage(),
+                message: 'فشل في إنشاء مذكرة الدخول: ' . $e->getMessage(),
                 code: 500,
-                errors: ['trace' => $e->getTraceAsString()],
                 internalCode: 'ENTRY_NOTE_CREATION_FAILED'
             );
         }
@@ -167,18 +170,18 @@ class EntryNoteController extends Controller
         $currentYear = date('Y');
 
         // الحصول على آخر مذكرة لهذه السنة
-        $lastEntry = ProductMovement::whereYear('created_at', $currentYear)
+        $last = ProductMovement::whereYear('created_at', $currentYear)
             ->orderBy('id', 'desc')
             ->first();
 
         // تحديد الأرقام الجديدة
-        if (!$lastEntry) {
+        if (!$last) {
             // أول مذكرة في السنة
             $folderNumber = 1;
             $noteNumber = 1;
         } else {
             // فك الترميز من السيريال السابق
-            $serial = trim($lastEntry->serial_number, '()');
+            $serial = trim($last->reference_serial, '()');
             list($lastFolderNumber, $lastNoteNumber) = explode('/', $serial);
 
             $lastFolderNumber = (int)$lastFolderNumber;
@@ -189,7 +192,7 @@ class EntryNoteController extends Controller
             $folderNumber = $lastFolderNumber;
 
             if ($noteNumber % 50 == 1 && $noteNumber > 50) {
-                $folderNumber = floor($noteNumber / 50) + 1;
+                $folderNumber = floor($noteNumber / 50) + 1 ;
             }
         }
 
