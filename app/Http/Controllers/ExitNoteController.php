@@ -9,6 +9,7 @@ use App\Models\ExitNote;
 use App\Models\ExitNoteItem;
 use App\Models\MaterialRequest;
 use App\Models\Product;
+use App\Models\ProductMovement;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -161,6 +162,8 @@ class ExitNoteController extends Controller
             $requesterId = null; // **جديد:** متغير لتخزين requester_id
 
             DB::transaction(function () use ($request, &$exitNote, &$custody, &$pendingCustodyItems, &$requesterId) {
+                $serialNumber = $this->generateSerialNumber();
+                $pmSerialNumber = $this->generateSerialNumberPM();
                 $materialRequest = MaterialRequest::with([
                     'requestedBy',
                     'items' => function($query) {
@@ -175,9 +178,11 @@ class ExitNoteController extends Controller
                 // **التصحيح الحاسم هنا:**
                 // التأكد من وجود المستخدم الذي طلب المواد قبل المتابعة.
                 // إذا لم يكن موجوداً، نقوم بإطلاق استثناء.
+
                 if (!$materialRequest->requestedBy) {
                     throw new \Exception('المستخدم الذي طلب المواد غير موجود أو غير مرتبط بطلب المواد. يرجى التحقق من تكامل البيانات.');
                 }
+
                 // **بعد هذا التحقق، يمكننا تخزين requester_id بأمان**
                 $requesterId = $materialRequest->requestedBy->id;
 
@@ -189,7 +194,7 @@ class ExitNoteController extends Controller
                 $exitNote = ExitNote::create([
                     'material_request_id' => $request->material_request_id,
                     'created_by' => $request->user()->id,
-                    'serial_number' => $this->generateSerialNumber(),
+                    'serial_number' => $serialNumber,
                     'date' => $request->date,
                 ]);
 
@@ -204,12 +209,12 @@ class ExitNoteController extends Controller
                         throw new \Exception("الكمية المطلوبة ({$item['quantity']}) للمنتج ID {$item['product_id']} أكبر من الكمية المعتمدة ({$matchingItem->quantity_approved}).");
                     }
 
-                    $warehouseStock = DB::table('stocks')
+                    $stock = DB::table('stocks')
                         ->where('warehouse_id', $item['warehouse_id'])
                         ->where('product_id', $item['product_id'])
                         ->first();
 
-                    if (!$warehouseStock || $warehouseStock->quantity < $item['quantity']) {
+                    if (!$stock || $stock->quantity < $item['quantity']) {
                         throw new \Exception("الكمية غير متوفرة في المستودع المحدد للمنتج ID {$item['product_id']}.");
                     }
 
@@ -249,6 +254,22 @@ class ExitNoteController extends Controller
                         ]);
                         $pendingCustodyItems[] = $custodyItem->load('product');
                     }
+
+                    // إنشاء حركة المنتج
+                    ProductMovement::create([
+                        'product_id' => $item['product_id'],
+                        'warehouse_id' => $item['warehouse_id'],
+                        'type' => 'exit',
+                        'reference_serial' => $pmSerialNumber,
+                        'prv_quantity' => $stock->quantity,
+                        'note_quantity' => $item['quantity'],
+                        'after_quantity' => $stock->quantity - $item['quantity'],
+                        'date' => $request->date,
+                        'reference_type' => 'ExitNote',
+                        'reference_id' => $exitNote->id,
+                        'user_id' => $request->user()->id,
+                        'notes' => $item['notes'] ?? 'إدخال من سند رقم: ' . $serialNumber,
+                    ]);
                 }
 
                 $materialRequest->update(['status' => 'delivered']);
@@ -327,4 +348,37 @@ class ExitNoteController extends Controller
 
         return "($folderNumber/$noteNumber)";
     }
+
+    protected function generateSerialNumberPM()
+    {
+        $currentYear = date('Y');
+
+        // الحصول على آخر مذكرة لهذه السنة
+        $lastEntry = ProductMovement::whereYear('created_at', $currentYear)
+            ->orderBy('id', 'desc')
+            ->first();
+
+        // تحديد الأرقام الجديدة
+        if (!$lastEntry) {
+            // أول مذكرة في السنة
+            $folderNumber = 1;
+            $noteNumber = 1;
+        } else {
+            // فك الترميز من السيريال السابق
+            $serial = trim($lastEntry->reference_serial, '()');
+            list($lastFolderNumber, $lastNoteNumber) = explode('/', $serial);
+
+            $lastFolderNumber = (int)$lastFolderNumber;
+            $lastNoteNumber = (int)$lastNoteNumber;
+
+            // حساب الأرقام الجديدة
+            $noteNumber = $lastNoteNumber + 1;
+            $folderNumber = $lastFolderNumber;
+
+            if ($noteNumber % 50 == 1 && $noteNumber > 50) {
+                $folderNumber = floor($noteNumber / 50) + 1;
+            }
+        }
+
+        return "($folderNumber/$noteNumber)";}
 }
