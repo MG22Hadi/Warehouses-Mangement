@@ -89,7 +89,7 @@ class EntryNoteController extends Controller
                         'product_id' => $item['product_id'],
                         'warehouse_id' => $item['warehouse_id'],
                         'type' => 'entry',
-                        'reference_serial' => $pmSerialNumber,
+                        'reference_serial' => $entryNote->serial_number,
                         'prv_quantity' => $stock->quantity,
                         'note_quantity' => $item['quantity'],
                         'after_quantity' => $stock->quantity + $item['quantity'],

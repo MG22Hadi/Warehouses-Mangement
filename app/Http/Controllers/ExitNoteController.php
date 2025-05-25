@@ -260,7 +260,7 @@ class ExitNoteController extends Controller
                         'product_id' => $item['product_id'],
                         'warehouse_id' => $item['warehouse_id'],
                         'type' => 'exit',
-                        'reference_serial' => $pmSerialNumber,
+                        'reference_serial' => $exitNote,
                         'prv_quantity' => $stock->quantity,
                         'note_quantity' => $item['quantity'],
                         'after_quantity' => $stock->quantity - $item['quantity'],
@@ -349,36 +349,4 @@ class ExitNoteController extends Controller
         return "($folderNumber/$noteNumber)";
     }
 
-    protected function generateSerialNumberPM()
-    {
-        $currentYear = date('Y');
-
-        // الحصول على آخر مذكرة لهذه السنة
-        $lastEntry = ProductMovement::whereYear('created_at', $currentYear)
-            ->orderBy('id', 'desc')
-            ->first();
-
-        // تحديد الأرقام الجديدة
-        if (!$lastEntry) {
-            // أول مذكرة في السنة
-            $folderNumber = 1;
-            $noteNumber = 1;
-        } else {
-            // فك الترميز من السيريال السابق
-            $serial = trim($lastEntry->reference_serial, '()');
-            list($lastFolderNumber, $lastNoteNumber) = explode('/', $serial);
-
-            $lastFolderNumber = (int)$lastFolderNumber;
-            $lastNoteNumber = (int)$lastNoteNumber;
-
-            // حساب الأرقام الجديدة
-            $noteNumber = $lastNoteNumber + 1;
-            $folderNumber = $lastFolderNumber;
-
-            if ($noteNumber % 50 == 1 && $noteNumber > 50) {
-                $folderNumber = floor($noteNumber / 50) + 1;
-            }
-        }
-
-        return "($folderNumber/$noteNumber)";}
 }
