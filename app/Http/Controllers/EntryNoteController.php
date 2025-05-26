@@ -50,7 +50,7 @@ class EntryNoteController extends Controller
         try {
             $result = DB::transaction(function () use ($request) {
                 $serialNumber = $this->generateSerialNumber();
-                $pmSerialNumber = $this->generateSerialNumberPM();
+
 
                 $entryNote = EntryNote::create([
                     'serial_number' => $serialNumber,
@@ -165,37 +165,5 @@ class EntryNoteController extends Controller
         return "($folderNumber/$noteNumber)";
     }
 
-    private function generateSerialNumberPM(): string
-    {
-        $currentYear = date('Y');
 
-        // الحصول على آخر مذكرة لهذه السنة
-        $last = ProductMovement::whereYear('created_at', $currentYear)
-            ->orderBy('id', 'desc')
-            ->first();
-
-        // تحديد الأرقام الجديدة
-        if (!$last) {
-            // أول مذكرة في السنة
-            $folderNumber = 1;
-            $noteNumber = 1;
-        } else {
-            // فك الترميز من السيريال السابق
-            $serial = trim($last->reference_serial, '()');
-            list($lastFolderNumber, $lastNoteNumber) = explode('/', $serial);
-
-            $lastFolderNumber = (int)$lastFolderNumber;
-            $lastNoteNumber = (int)$lastNoteNumber;
-
-            // حساب الأرقام الجديدة
-            $noteNumber = $lastNoteNumber + 1;
-            $folderNumber = $lastFolderNumber;
-
-            if ($noteNumber % 50 == 1 && $noteNumber > 50) {
-                $folderNumber = floor($noteNumber / 50) + 1 ;
-            }
-        }
-
-        return "($folderNumber/$noteNumber)";
-    }
 }

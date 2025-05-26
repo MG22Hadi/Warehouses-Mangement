@@ -163,7 +163,6 @@ class ExitNoteController extends Controller
 
             DB::transaction(function () use ($request, &$exitNote, &$custody, &$pendingCustodyItems, &$requesterId) {
                 $serialNumber = $this->generateSerialNumber();
-                $pmSerialNumber = $this->generateSerialNumberPM();
                 $materialRequest = MaterialRequest::with([
                     'requestedBy',
                     'items' => function($query) {
@@ -260,7 +259,7 @@ class ExitNoteController extends Controller
                         'product_id' => $item['product_id'],
                         'warehouse_id' => $item['warehouse_id'],
                         'type' => 'exit',
-                        'reference_serial' => $exitNote,
+                        'reference_serial' => $exitNote->serial_number,
                         'prv_quantity' => $stock->quantity,
                         'note_quantity' => $item['quantity'],
                         'after_quantity' => $stock->quantity - $item['quantity'],

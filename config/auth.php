@@ -40,15 +40,15 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
-        'user' => [
+        'user-api' => [  // أفضل من 'user' فقط لتجنب الالتباس
             'driver' => 'sanctum',
             'provider' => 'users',
         ],
-        'manager' => [
+        'manager-api' => [  // غيرت من 'manager' إلى 'manager-api' للتوضيح
             'driver' => 'sanctum',
             'provider' => 'managers',
         ],
-        'warehouse_keeper' => [
+        'warehouse-keeper-api' => [  // غيرت من 'warehouse_keeper' إلى 'warehouse-keeper-api'
             'driver' => 'sanctum',
             'provider' => 'warehouse_keepers',
         ],
@@ -76,7 +76,7 @@ return [
             'driver' => 'eloquent',
             'model' => env('AUTH_MODEL', App\Models\User::class),
         ],
-        'manager' => [
+        'managers' => [
             'driver' => 'eloquent',
             'model' => env('AUTH_MODEL', App\Models\Manager::class),
         ],

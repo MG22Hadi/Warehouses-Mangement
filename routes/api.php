@@ -105,8 +105,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/allScrapNote',[ScrapNoteController::class,'index']);
     Route::get('/scrapNote/{id}/details',[ScrapNoteController::class,'show']);
     Route::post('/scrapNote/store', [ScrapNoteController::class, 'store']);
-    Route::put('scrapNotes/{id}/approve', [ScrapNoteController::class, 'approve']);
-    Route::put('scrapNotes/{id}/reject', [ScrapNoteController::class, 'reject']);
+
 
     // InstallationReport
     Route::get('/allInstallationReport',[InstallationReportController::class,'index']);
@@ -116,4 +115,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // product Movement
 
 
+});
+
+Route::middleware('auth:manager-api')->group(function () {
+    Route::put('scrapNotes/{id}/approve', [ScrapNoteController::class, 'approve']);
+    Route::put('scrapNotes/{id}/reject', [ScrapNoteController::class, 'reject']);
 });

@@ -9,6 +9,7 @@ use App\Models\ScrapNote;
 use App\Models\ScrappedMaterial;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
@@ -57,7 +58,8 @@ class ScrapNoteController extends Controller
                 // التحقق من توفر الكميات في المخزون قبل إنشاء المذكرة
                 foreach ($request->materials as $material) {
                     $availableQuantity = DB::table('stocks')
-                        ->where('product_id', $material['product_id'])
+                        ->where('product_id', $material['product_id']) // تم التعديل هنا
+                        ->where('warehouse_id', $material['warehouse_id']) // تم التعديل هنا
                         ->sum('quantity');
 
                     if ($availableQuantity < $material['quantity']) {
@@ -80,6 +82,7 @@ class ScrapNoteController extends Controller
                     ScrappedMaterial::create([
                         'scrap_note_id' => $scrapNote->id,
                         'product_id' => $material['product_id'],
+                        'warehouse_id' => $material['warehouse_id'],
                         'quantity' => $material['quantity'],
                         'notes' => $material['notes'] ?? null,
                     ]);
@@ -87,7 +90,7 @@ class ScrapNoteController extends Controller
             });
 
             // إعادة تحميل النموذج مع العلاقات
-            $scrapNote = ScrapNote::find($scrapNote->id);
+            $scrapNote = ScrapNote::with('materials')->find($scrapNote->id);
 
             return $this->successResponse(
                 $scrapNote,
@@ -96,7 +99,7 @@ class ScrapNoteController extends Controller
 
         } catch (\Exception $e) {
             return $this->errorResponse(
-                message: 'فشل في إنشاء مذكرة التلف : ' . $e->getMessage(),
+                message: 'فشل في إنشاء مذكرة التلف: ' . $e->getMessage(),
                 code: 422,
                 internalCode: 'SCRAP_NOTE_CREATION_FAILED'
             );
@@ -108,7 +111,7 @@ class ScrapNoteController extends Controller
         try {
             DB::transaction(function () use ($id) {
                 $scrapNote = ScrapNote::with('materials')->findOrFail($id);
-                $pmSerialNumber = $this->generateSerialNumberPM();
+
 
                 if ($scrapNote->status != ScrapNote::STATUS_PENDING) {
                     throw new \Exception('لا يمكن الموافقة على مذكرة غير معلقة');
@@ -122,7 +125,7 @@ class ScrapNoteController extends Controller
                         ->first();
 
                     if (!$stock || $stock->quantity < $material->quantity) {
-                        throw new \Exception("الكمية غير متوفرة للمنتج {$material->product_id} في المستودع المحدد");
+                        throw new \Exception("  الكمية غير متوفرة للمنتج {$material->product_id} في المستودع المحدد");
                     }
                 }
 
@@ -157,7 +160,7 @@ class ScrapNoteController extends Controller
 
                 $scrapNote->update([
                     'status' => ScrapNote::STATUS_APPROVED,
-                    'approved_by' => auth()->id(),
+                    'approved_by' => Auth::id(),
                     'approved_at' => now(),
                 ]);
             });
@@ -256,38 +259,5 @@ class ScrapNoteController extends Controller
         return "($folderNumber/$noteNumber)";
     }
 
-    private function generateSerialNumberPM(): string
-    {
-        $currentYear = date('Y');
-
-        // الحصول على آخر مذكرة لهذه السنة
-        $last = ProductMovement::whereYear('created_at', $currentYear)
-            ->orderBy('id', 'desc')
-            ->first();
-
-        // تحديد الأرقام الجديدة
-        if (!$last) {
-            // أول مذكرة في السنة
-            $folderNumber = 1;
-            $noteNumber = 1;
-        } else {
-            // فك الترميز من السيريال السابق
-            $serial = trim($last->reference_serial, '()');
-            list($lastFolderNumber, $lastNoteNumber) = explode('/', $serial);
-
-            $lastFolderNumber = (int)$lastFolderNumber;
-            $lastNoteNumber = (int)$lastNoteNumber;
-
-            // حساب الأرقام الجديدة
-            $noteNumber = $lastNoteNumber + 1;
-            $folderNumber = $lastFolderNumber;
-
-            if ($noteNumber % 50 == 1 && $noteNumber > 50) {
-                $folderNumber = floor($noteNumber / 50) + 1 ;
-            }
-        }
-
-        return "($folderNumber/$noteNumber)";
-    }
 
 }
