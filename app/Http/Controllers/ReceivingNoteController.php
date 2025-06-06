@@ -17,6 +17,21 @@ class ReceivingNoteController extends Controller
 {
     //
     use ApiResponse;
+
+    // إظهار كل المذكرات
+    public function index()
+    {
+        try {
+            $notes =ReceivingNote::withCount('items') // هنا نستخدم withCount بدلاً of with
+
+            ->get();
+
+            return $this->successResponse($notes, 'تم جلب المذكرات مع عدد الأصناف بنجاح');
+        } catch (\Exception $e) {
+            return $this->handleExceptionResponse($e);
+        }
+    }
+
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -106,6 +121,17 @@ class ReceivingNoteController extends Controller
                 code: 500,
                 internalCode: 'RECEIVING_NOTE_CREATION_FAILED'
             );
+        }
+    }
+
+    // إظهار مذكرة محددة
+    public function show($id)
+    {
+        try {
+            $note = ReceivingNote::findOrFail($id);
+            return $this->successResponse($note, 'تم جلب المذكرة بنجاح');
+        } catch (\Exception $e) {
+            return $this->handleExceptionResponse($e, 'المذكرة غير موجودة');
         }
     }
 
