@@ -9,6 +9,7 @@ class ReceivingNoteItem extends Model
     protected $fillable = [
         'receiving_note_id',
         'product_id',
+        'warehouse_id',
         'unit_price',
         'quantity',
         'total_price',
@@ -24,6 +25,10 @@ class ReceivingNoteItem extends Model
     {
         return $this->belongsTo(Product::class);
     }
+    public function warehouse()
+    {
+        return $this->belongsTo(Warehouse::class);
+    }
 
     protected static function boot()
     {
@@ -33,4 +38,4 @@ class ReceivingNoteItem extends Model
             $model->total_price = $model->quantity * $model->unit_price;
         });
     }
-} 
+}

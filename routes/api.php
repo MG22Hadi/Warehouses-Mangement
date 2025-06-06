@@ -9,6 +9,7 @@ use App\Http\Controllers\ExitNoteController;
 use App\Http\Controllers\InstallationReportController;
 use App\Http\Controllers\MaterialRequestController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\ReceivingNoteController;
 use App\Http\Controllers\RoomController;
 use App\Http\Controllers\ScrapNoteController;
 use App\Http\Controllers\WarehouseController;
@@ -30,7 +31,6 @@ Route::middleware('auth:sanctum')->group(function () {
 
 
     //ENTRY NOTE
-
     Route::get('/allEntryNote',[EntryNoteController::class,'index']);
     Route::get('/EntryNote/{id}/details',[EntryNoteController::class,'show']);
     Route::post('/entryNote',[EntryNoteController::class,'store']);
@@ -40,7 +40,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/ExitNote/{id}/details',[ExitNoteController::class,'show']);
     Route::post('/exitNote',[ExitNoteController::class,'store']);
 
-    //    WAREHOUSE
+    //RECEIVING NOTE
+    Route::get('/allReceivingNote',[ReceivingNoteController::class,'index']);
+    Route::get('/ReceivingNote/{id}/details',[ReceivingNoteController::class,'show']);
+    Route::post('/receivingNote',[ReceivingNoteController::class,'store']);
+
+
+    //WAREHOUSE
     Route::post('/warehouses/store', [WarehouseController::class, 'store']);
     Route::put('/warehouses/update/{id}', [WarehouseController::class, 'update']);
     Route::delete('/warehouses/destroy/{id}', [WarehouseController::class, 'destroy']);
@@ -48,7 +54,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('warehouses/show/{id}', [WarehouseController::class, 'show']);
 
 
-    //    PRODUCTS
+    //PRODUCTS
     Route::post('/products/store', [ProductController::class, 'store']);
     Route::put('products/update/{id}', [ProductController::class, 'update']);
     Route::delete('products/delete/{id}', [ProductController::class, 'destroy']);
@@ -67,12 +73,16 @@ Route::middleware('auth:sanctum')->group(function () {
     //CUSTODY
     // إنشاء عهدة بشكل يدوي
     Route::post('/custody/store', [CustodyController::class, 'store']);
+
     // عرض كل عهد شخص ما
     Route::get('/custody/allForUser',[CustodyController::class,'showAllForUser']);
+
     //عرض عهدة محددة
     Route::get('/custody/specific/{custody}', [CustodyController::class, 'showSpecific']);
+
     // عرض كل العهد في جدول العهد
     Route::get('/custody/showAll', [CustodyController::class, 'showAll']);
+
     // عرض كل العهد الموجودة في غرفة ما
     Route::get('/rooms/{roomId}/custodies', [CustodyController::class, 'showRoomCustodies']);
     // جلب غرف شخص ما

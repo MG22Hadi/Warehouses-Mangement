@@ -8,7 +8,6 @@ class ReceivingNote extends Model
 {
     protected $fillable = [
         'supplier_id',
-        'warehouse_id',
         'created_by',
         'serial_number',
         'date'
@@ -23,10 +22,6 @@ class ReceivingNote extends Model
         return $this->belongsTo(Supplier::class);
     }
 
-    public function warehouse()
-    {
-        return $this->belongsTo(Warehouse::class);
-    }
 
     public function createdBy()
     {
@@ -37,4 +32,4 @@ class ReceivingNote extends Model
     {
         return $this->hasMany(ReceivingNoteItem::class);
     }
-} 
+}
