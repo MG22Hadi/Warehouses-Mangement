@@ -129,7 +129,6 @@ class AuthController extends Controller
         ], 'تم تسجيل الدخول بنجاح');
     }
 
-
     public function logout(Request $request)
     {
         try {
@@ -139,4 +138,5 @@ class AuthController extends Controller
             return $this->handleExceptionResponse($e, 'Logout failed');
         }
     }
+
 }

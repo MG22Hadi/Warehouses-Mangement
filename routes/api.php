@@ -13,6 +13,7 @@ use App\Http\Controllers\ProductMovementController;
 use App\Http\Controllers\ReceivingNoteController;
 use App\Http\Controllers\RoomController;
 use App\Http\Controllers\ScrapNoteController;
+use App\Http\Controllers\UserController;
 use App\Http\Controllers\WarehouseController;
 use App\Models\EntryNote;
 use Illuminate\Http\Request;
@@ -127,6 +128,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('product-movements/{productId}/byMonth', [ProductMovementController::class, 'getMovementsByMonth']);
     Route::get('product-movements/{productId}', [ProductMovementController::class, 'showProductMovement']);
     Route::get('products/monthlyBalances', [ProductMovementController::class, 'getMonthlyProductBalances']);
+
+    Route::prefix('v1')->group(function () {
+        Route::apiResource('users', UserController::class);
+    });
 
 });
 

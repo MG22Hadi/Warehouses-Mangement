@@ -22,16 +22,11 @@ class User extends Authenticatable
         'department_id',
         'name',
         'email',
-        'job_title',
+        'phone',
         'password',
-        'phone'
+        'job_title'
     ];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var list<string>
-     */
     protected $hidden = [
         'password',
         'remember_token',
