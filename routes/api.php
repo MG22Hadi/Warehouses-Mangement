@@ -9,6 +9,7 @@ use App\Http\Controllers\ExitNoteController;
 use App\Http\Controllers\InstallationReportController;
 use App\Http\Controllers\MaterialRequestController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\ProductMovementController;
 use App\Http\Controllers\ReceivingNoteController;
 use App\Http\Controllers\RoomController;
 use App\Http\Controllers\ScrapNoteController;
@@ -123,7 +124,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/InstallationReport/store', [InstallationReportController::class, 'store']);
 
     // product Movement
-
+    Route::get('product-movements/{productId}/byMonth', [ProductMovementController::class, 'getMovementsByMonth']);
+    Route::get('product-movements/{productId}', [ProductMovementController::class, 'showProductMovement']);
+    Route::get('products/monthlyBalances', [ProductMovementController::class, 'getMonthlyProductBalances']);
 
 });
 

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Product;
+use App\Models\ProductMovement;
 use App\Models\Stock;
 use App\Traits\ApiResponse;
 
@@ -10,6 +11,7 @@ use App\Traits\ApiResponse;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use mysql_xdevapi\Exception;
 
 class ProductController extends Controller
 {
