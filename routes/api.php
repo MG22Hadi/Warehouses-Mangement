@@ -4,6 +4,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BuildingController;
 use App\Http\Controllers\CalendarNoteController;
 use App\Http\Controllers\CustodyController;
+use App\Http\Controllers\CustodyReturnController;
 use App\Http\Controllers\EntryNoteController;
 use App\Http\Controllers\ExitNoteController;
 use App\Http\Controllers\MaterialRequestController;
@@ -77,6 +78,19 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/users/{user}/rooms', [CustodyController::class, 'getSpecificUserRooms']);
     // اسناد أغراض إلى غرف
     Route::post('/custody-items/assign-rooms-bulk', [CustodyController::class, 'assignRoomsToCustodyItems']);
+
+
+    // return Custody
+    // إنشاء طلب إرجاع جديد
+    Route::post('/custody-returns', [CustodyReturnController::class, 'createReturnRequest']);
+    Route::post('/custody-returns/items/{custodyReturnItemId}/process', [CustodyReturnController::class, 'processCustodyReturnItem']);
+    Route::get('/custody-returns', [CustodyReturnController::class, 'index']);
+    Route::get('/custody-returns/pending', [CustodyReturnController::class, 'pendingReturnRequests']);
+    Route::get('/custody-returns/{id}', [CustodyReturnController::class, 'show']);
+    Route::get('/my-custody-returns', [CustodyReturnController::class, 'myReturnRequests']);
+
+
+
 
     //BUILDINGS
     Route::post('/buildings/store', [BuildingController::class, 'store']);

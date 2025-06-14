@@ -28,6 +28,11 @@ class MaterialRequest extends Model
         return $this->belongsTo(Manager::class, 'approved_by');
     }
 
+//    public function manager()
+//    {
+//        return $this->belongsTo(Manager::class, 'manager_id');
+//    }
+
     public function warehouseKeeper()
     {
         return $this->belongsTo(WarehouseKeeper::class, 'warehouse_keeper_id');
