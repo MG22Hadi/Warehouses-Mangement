@@ -39,8 +39,13 @@ class CustodyItem extends Model
     }
 
 
-    public function returns()
+//    public function returns()
+//    {
+//        return $this->hasMany(CustodyReturn::class);
+//    }
+
+    public function returnItems()
     {
-        return $this->hasMany(CustodyReturn::class);
+        return $this->hasMany(CustodyReturnItem::class);
     }
 }
