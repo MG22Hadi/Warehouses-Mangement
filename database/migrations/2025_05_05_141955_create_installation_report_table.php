@@ -15,6 +15,7 @@ return new class extends Migration
             $table->string('serial_number')->unique();
             $table->text('location');
             $table->enum('type', ['purchase', 'stock_usage']);
+            $table->enum('status', ['pending','approved', 'rejected'])->default('pending');
             $table->date('date');
             $table->text('notes')->nullable();
             $table->timestamps();

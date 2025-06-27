@@ -13,9 +13,10 @@ return new class extends Migration
             $table->foreignId('installation_report_id')->constrained('installation_reports')->cascadeOnDelete();
             $table->foreignId('product_id')->nullable()->constrained('products');
             $table->string('product_name'); // نسخة من اسم المنتج وقت التركيب
-            $table->decimal('quantity', 10, 2);
-            $table->decimal('unit_price', 12, 2);
-            $table->decimal('total_price', 12, 2);
+            $table->float('quantity', 10, 2);
+            $table->float('quantity_approved', 10, 2)->nullable();
+            $table->float('unit_price', 12, 2);
+            $table->float('total_price', 12, 2);
             $table->text('notes')->nullable();
             $table->timestamps();
         });

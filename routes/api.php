@@ -28,6 +28,40 @@ Route::post('/register', [AuthController::class, 'register']);
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
 
+
+
+
+
+
+
+
+
+    // InstallationReport
+    Route::get('/allInstallationReport',[InstallationReportController::class,'index']);
+    Route::get('/InstallationReport/{id}/details',[InstallationReportController::class,'show']);
+    Route::post('/InstallationReport/store', [InstallationReportController::class, 'store']);
+
+    // product Movement
+    Route::get('product-movements/{productId}/byMonth', [ProductMovementController::class, 'getMovementsByMonth']);
+    Route::get('product-movements/{productId}', [ProductMovementController::class, 'showProductMovement']);
+    Route::get('products/monthlyBalances', [ProductMovementController::class, 'getMonthlyProductBalances']);
+
+    Route::prefix('v1')->group(function () {
+        Route::apiResource('users', UserController::class);
+    });
+
+});
+
+Route::middleware('auth:manager-api')->group(function () {
+    Route::put('scrapNotes/{id}/approve', [ScrapNoteController::class, 'approve']);
+    Route::put('scrapNotes/{id}/reject', [ScrapNoteController::class, 'reject']);
+});
+
+
+
+
+Route::middleware('auth:warehouse-keeper-api')->group(function () {
+
     Route::get('/products/search', [ProductController::class, 'search']);
     Route::get('/products/{id}/details', [ProductController::class, 'details']);
 
@@ -63,14 +97,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/products',[ProductController::class,'index']);
     Route::get('products/show/{id}', [ProductController::class, 'show']);
 
-
     //MATERIAL REQUEST
-    Route::post('/MRequest',[MaterialRequestController::class,'store']);
     Route::get('/allRequestMaterial',[MaterialRequestController::class,'index']);
-    Route::get('/pendingRequestMaterial',[MaterialRequestController::class,'pendingRequests']);
-    Route::put('/materialRequests/{id}/edit', [MaterialRequestController::class, 'editRequest']);
-    Route::put('/materialRequests/{id}/reject', [MaterialRequestController::class, 'rejectRequest']);
-    Route::put('/materialRequests/{id}/approve', [MaterialRequestController::class, 'approveRequest']);
 
     //CUSTODY
     // إنشاء عهدة بشكل يدوي
@@ -119,23 +147,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/scrapNote/store', [ScrapNoteController::class, 'store']);
 
 
-    // InstallationReport
-    Route::get('/allInstallationReport',[InstallationReportController::class,'index']);
-    Route::get('/InstallationReport/{id}/details',[InstallationReportController::class,'show']);
-    Route::post('/InstallationReport/store', [InstallationReportController::class, 'store']);
-
-    // product Movement
-    Route::get('product-movements/{productId}/byMonth', [ProductMovementController::class, 'getMovementsByMonth']);
-    Route::get('product-movements/{productId}', [ProductMovementController::class, 'showProductMovement']);
-    Route::get('products/monthlyBalances', [ProductMovementController::class, 'getMonthlyProductBalances']);
-
-    Route::prefix('v1')->group(function () {
-        Route::apiResource('users', UserController::class);
-    });
 
 });
 
-Route::middleware('auth:manager-api')->group(function () {
-    Route::put('scrapNotes/{id}/approve', [ScrapNoteController::class, 'approve']);
-    Route::put('scrapNotes/{id}/reject', [ScrapNoteController::class, 'reject']);
+Route::middleware('auth:user-api')->group(function () {
+
+    //MATERIAL REQUEST
+    Route::post('/MRequest',[MaterialRequestController::class,'store']);
+    Route::get('/pendingRequestMaterial',[MaterialRequestController::class,'pendingRequests']);
+    Route::put('/materialRequests/{id}/edit', [MaterialRequestController::class, 'editRequest']);
+    Route::put('/materialRequests/{id}/reject', [MaterialRequestController::class, 'rejectRequest']);
+    Route::put('/materialRequests/{id}/approve', [MaterialRequestController::class, 'approveRequest']);
 });

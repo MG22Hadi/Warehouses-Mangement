@@ -31,7 +31,6 @@ class AuthController extends Controller
         }
 
         $models = [
-            'user'             => \App\Models\User::class,
             'manager'          => \App\Models\Manager::class,
             'warehouseKeeper'  => \App\Models\WarehouseKeeper::class,
         ];
@@ -45,21 +44,6 @@ class AuthController extends Controller
             'password' => Hash::make($request->password),
         ];
 
-        // إضافة الحقول الخاصة بالمستخدم
-        if ($request->type == 'user') {
-            $userValidator = Validator::make($request->all(), [
-                'department_id' => 'required|exists:departments,id',
-                'job_title'     => 'required|string|max:255',
-            ]);
-
-            if ($userValidator->fails()) {
-                return $this->validationErrorResponse($userValidator);
-            }
-
-            $data['department_id'] = $request->department_id;
-            $data['role'] = $request->role;
-            $data['job_title'] = $request->job_title;
-        }
 
         try {
             $user = $modelClass::create($data);

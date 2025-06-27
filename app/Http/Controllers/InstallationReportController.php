@@ -108,90 +108,6 @@ class InstallationReportController extends Controller
     }
 
 
-//    public function store(Request $request)
-//    {
-//        $validator = Validator::make($request->all(), [
-//            'location' => 'required|string|max:500',
-//            'type' => 'required|in:purchase,stock_usage',
-//            'date' => 'required|date',
-//            'notes' => 'nullable|string|max:1000',
-//            'materials' => 'required|array|min:1',
-//            'materials.*.product_id' => 'required|exists:products,id',
-//            'materials.*.quantity' => 'required|numeric|min:0.01',
-//            'materials.*.notes' => 'nullable|string|max:500',
-//            'materials.*.unit_price' => 'required_if:type,purchase|numeric|min:0',
-//        ], [
-//            'materials.*.unit_price.required_if' => 'سعر الوحدة مطلوب لنوع الشراء'
-//        ]);
-//
-//        if ($validator->fails()) {
-//            return $this->validationErrorResponse($validator);
-//        }
-//
-//        try {
-//            $installationReport = null;
-//
-//            DB::transaction(function () use ($request, &$installationReport) {
-//                // إنشاء تقرير التركيب
-//                $installationReport = InstallationReport::create([
-//                    'created_by' => $request->user()->id,
-//                    'approved_by' => null,
-//                    'serial_number' => $this->generateInstallationSerialNumber(),
-//                    'location' => $request->location,
-//                    'type' => $request->type,
-//                    'date' => $request->date,
-//                    'notes' => $request->notes,
-//                ]);
-//
-//                foreach ($request->materials as $material) {
-//                     if($request->type === 'purchase' ) {
-//
-//                         $unitPrice = $material['unit_price'] ;
-//                         $totalPrice = $material['quantity'] * $unitPrice;
-//                     }
-//                    // التحقق من المخزون فقط لنوع "استخدام من المخزون"
-//                    else if ($request->type === 'stock_usage') {
-//                        $product = $material['product'];
-//                        $availableQuantity = DB::table('stocks')
-//                            ->where('product_id', $material['product_id'])
-//                            ->sum('quantity');
-//
-//                        if ($availableQuantity < $material['quantity']) {
-//                            throw new \Exception("الكمية غير متوفرة في المخزون للمنتج: {$product->name} (المتاح: {$availableQuantity})");
-//                        }
-//
-//                        // خصم الكمية من المخزون
-//                        DB::table('stocks')
-//                            ->where('product_id', $material['product_id'])
-//                            ->decrement('quantity', $material['quantity']);
-//                    }
-//
-//                    InstallationMaterial::create([
-//                        'installation_report_id' => $installationReport->id,
-//                        'product_id' => $material['product_id'] ?? null,
-//                        'product_name' => $product->name,
-//                        'quantity' => $material['quantity'],
-//                        'unit_price' => $unitPrice ?? null,
-//                        'total_price' => $totalPrice ?? null ,
-//                        'notes' => $material['notes'] ?? null,
-//                    ]);
-//                }
-//            });
-//
-//            return $this->successResponse(
-//                $installationReport->load(['materials.product', 'createdBy']),
-//                'تم إنشاء تقرير التركيب بنجاح'
-//            );
-//
-//        } catch (\Exception $e) {
-//            return $this->errorResponse(
-//                message: 'فشل في إنشاء تقرير التركيب: ' . $e->getMessage(),
-//                code: 422,
-//                internalCode: 'INSTALLATION_REPORT_CREATION_FAILED'
-//            );
-//        }
-//    }
-
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -248,11 +164,6 @@ class InstallationReportController extends Controller
                         if ($availableQuantity < $material['quantity']) {
                             throw new \Exception("الكمية غير متوفرة في المخزون (المتاح: {$availableQuantity})");
                         }
-
-                        // خصم الكمية من المخزون
-                        DB::table('stocks')
-                            ->where('product_id', $productId)
-                            ->decrement('quantity', $material['quantity']);
 
                         $productName = Product::find($productId)->name;
                     }
@@ -373,7 +284,69 @@ class InstallationReportController extends Controller
     }
 
 
+    /**
+     * @PUT /api/installation-reports/{id}/approve
+     * الموافقة على تقرير التركيب وخصم الكمية من المخزون
+     */
+    public function approve(Request $request, $id)
+    {
+        try {
+            DB::transaction(function () use ($request, $id) {
+                $report = InstallationReport::with('materials')->findOrFail($id);
 
+                // التحقق من أن التقرير ليس معتمداً بالفعل
+                if ($report->approved_by) {
+                    throw new \Exception('تم اعتماد هذا التقرير مسبقاً');
+                }
+
+                // التحقق من أن المستخدم الحالي لديه صلاحية المدير
+                if (!$request->user()->hasRole('manager')) {
+                    throw new \Exception('ليست لديك صلاحية اعتماد تقارير التركيب');
+                }
+
+                // إذا كان النوع "استخدام من المخزون" نخصم الكمية من المخزون
+                if ($report->type === 'stock_usage') {
+                    foreach ($report->materials as $material) {
+                        if ($material->product_id) {
+                            // التحقق مرة أخرى من توفر الكمية (قد تكون تغيرت منذ الإنشاء)
+                            $availableQuantity = DB::table('stocks')
+                                ->where('product_id', $material->product_id)
+                                ->sum('quantity');
+
+                            if ($availableQuantity < $material->quantity) {
+                                throw new \Exception("الكمية غير متوفرة الآن في المخزون للمنتج ID {$material->product_id} (المتاح: {$availableQuantity}, المطلوب: {$material->quantity})");
+                            }
+
+                            // خصم الكمية من المخزون
+                            DB::table('stocks')
+                                ->where('product_id', $material->product_id)
+                                ->decrement('quantity', $material->quantity);
+                        }
+                    }
+                }
+
+                // تحديث حالة التقرير
+                $report->update([
+                    'approved_by' => $request->user()->id,
+                    'approved_at' => now(),
+                    'status' => 'approved'
+                ]);
+                
+            });
+
+            return $this->successResponse(
+                InstallationReport::with(['approvedBy', 'materials'])->find($id),
+                'تم اعتماد تقرير التركيب بنجاح وتم خصم الكميات من المخزون'
+            );
+
+        } catch (\Exception $e) {
+            return $this->errorResponse(
+                message: 'فشل في اعتماد التقرير: ' . $e->getMessage(),
+                code: 422,
+                internalCode: 'INSTALLATION_REPORT_APPROVAL_FAILED'
+            );
+        }
+    }
 
 
 
