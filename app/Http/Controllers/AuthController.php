@@ -16,7 +16,7 @@ class AuthController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'name'     => 'required|string|max:255',
-            'password' => 'required|string|min:6|confirmed',
+            'password' => 'required|string|min:8|confirmed',
             'type'     => ['required', Rule::in(['user', 'manager', 'warehouseKeeper'])],
             'email'    => 'nullable|email|unique:users|unique:managers|unique:warehouse_keepers',
             'phone'    => 'nullable|string|unique:users|unique:managers|unique:warehouse_keepers|regex:/^09\d{8}$/',
