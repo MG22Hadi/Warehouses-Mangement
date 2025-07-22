@@ -10,6 +10,7 @@ class ScrappedMaterial extends Model
         'scrap_note_id',
         'product_id',
         'quantity',
+        'location_id',
         'notes'
     ];
 

@@ -45,7 +45,11 @@ class ScrapNoteController extends Controller
             'materials' => 'required|array|min:1',
             'materials.*.product_id' => 'required|exists:products,id',
             'materials.*.quantity' => 'required|numeric|min:0.01',
+            'materials.*.location_id' => 'required|exists:locations,id', // <--- جديد: أمين المستودع يحدد الموقع هنا
             'materials.*.notes' => 'nullable|string|max:500',
+        ], [
+            'materials.*.location_id.required' => 'الموقع مطلوب لكل مادة تلف.',
+            'materials.*.location_id.exists' => 'الموقع المحدد غير موجود.',
         ]);
 
         if ($validator->fails()) {
@@ -53,66 +57,60 @@ class ScrapNoteController extends Controller
         }
 
         try {
-
             $scrapNote = null;
 
             DB::transaction(function () use ($request, &$scrapNote) {
-                /**
-                // التحقق من توفر الكميات في المخزون قبل إنشاء المذكرة
-                foreach ($request->materials as $material) {
-                    $availableQuantity = DB::table('stocks')
-                        ->where('product_id', $material['product_id'])
-                        ->sum('quantity');
 
-                    if ($availableQuantity < $material['quantity']) {
-                        throw new \Exception("الكمية المطلوبة ({$material['quantity']}) للمنتج ID {$material['product_id']} غير متوفرة في المخزون (المتاح: {$availableQuantity})");
-                    }
-                }*/
-
-                // التحقق من توفر الكميات في المخزون بناءً على ProductLocation
+                // التحقق من توفر الكميات في المواقع المحددة قبل إنشاء أي شيء
                 foreach ($request->materials as $material) {
-                    $product = Product::find($material['product_id']); // جلب المنتج للحصول على اسمه
+                    $product = Product::find($material['product_id']);
+                    $location = Location::find($material['location_id']);
+
                     if (!$product) {
                         throw new \Exception("المنتج ID {$material['product_id']} غير موجود.");
                     }
+                    if (!$location) {
+                        throw new \Exception("الموقع ID {$material['location_id']} غير موجود.");
+                    }
 
-                    // جمع الكميات من كل المواقع التي تحتوي على هذا المنتج
-                    $availableQuantity = ProductLocation::where('product_id', $material['product_id'])
-                        ->sum('quantity');
+                    // التحقق من مطابقة نوع الوحدة بين المنتج والموقع (ضروري)
+                    if ($product->unit !== $location->capacity_unit_type) {
+                        throw new \Exception("لا يمكن إتلاف المنتج (وحدته: " . $product->unit . ") من الموقع (وحدته: " . $location->capacity_unit_type . "). يجب أن تتطابق الوحدات.");
+                    }
 
-                    if ($availableQuantity < $material['quantity']) {
-                        throw new \Exception("الكمية المطلوبة ({$material['quantity']}) للمنتج '{$product->name}' غير متوفرة في المخزون (المتاح: {$availableQuantity}).");
+                    // التحقق من الكمية المتوفرة في ProductLocation للموقع المحدد
+                    $productLocation = ProductLocation::where('product_id', $material['product_id'])
+                        ->where('location_id', $material['location_id'])
+                        ->first();
+
+                    if (!$productLocation || $productLocation->quantity < $material['quantity']) {
+                        $availableInLocation = $productLocation ? $productLocation->quantity : 0;
+                        throw new \Exception("الكمية المطلوبة للإتلاف ({$material['quantity']}) للمنتج '{$product->name}' غير متوفرة في الموقع '{$location->name}' (المتاح: {$availableInLocation}).");
                     }
                 }
 
-                // إنشاء مذكرة التلف
+                // إنشاء مذكرة التلف بعد اجتياز جميع التحققات
                 $scrapNote = ScrapNote::create([
                     'created_by' => $request->user()->id,
-                    'approved_by' => null, // سيتم الموافقة لاحقاً
-                    'serial_number' =>$this->generateSerialNumber(),
+                    'approved_by' => null,
+                    'serial_number' => $this->generateSerialNumber(),
                     'reason' => $request->reason,
                     'date' => $request->date,
                     'notes' => $request->notes,
                 ]);
 
-                // إضافة المواد التالفة
+                // إضافة المواد التالفة وتخزين location_id
                 foreach ($request->materials as $material) {
                     ScrappedMaterial::create([
                         'scrap_note_id' => $scrapNote->id,
                         'product_id' => $material['product_id'],
                         'quantity' => $material['quantity'],
+                        'location_id' => $material['location_id'], // <--- تخزين الـ location_id هنا
                         'notes' => $material['notes'] ?? null,
                     ]);
-
-                    // خصم الكمية من المخزون (يمكن تعديله حسب نظام المخازن)
-//                    DB::table('stocks')
-//                        ->where('product_id', $material['product_id'])
-//                        ->decrement('quantity', $material['quantity']);
-
                 }
             });
 
-            // إعادة تحميل النموذج مع العلاقات
             $scrapNote = ScrapNote::find($scrapNote->id);
 
             return $this->successResponse(
@@ -120,7 +118,8 @@ class ScrapNoteController extends Controller
                 'تم إنشاء مذكرة التلف بنجاح وسوف يتم مراجعتها للموافقة'
             );
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) { // استخدام Throwable لأخطاء أوسع
+            DB::rollBack();
             return $this->errorResponse(
                 message: 'فشل في إنشاء مذكرة التلف: ' . $e->getMessage(),
                 code: 422,
@@ -182,7 +181,6 @@ class ScrapNoteController extends Controller
     {
         $user = Auth::user();
 
-
         try {
             DB::transaction(function () use ($id, $request, $user) {
                 $scrapNote = ScrapNote::with('materials.product')->findOrFail($id);
@@ -191,143 +189,99 @@ class ScrapNoteController extends Controller
                     throw new \Exception('لا يمكن الموافقة على مذكرة تلف غير معلقة.');
                 }
 
-                // التحقق من صحة location_id والكمية المقبولة لكل عنصر
-                $validator = Validator::make($request->all(), [
-                    'materials' => 'required|array|min:1', // التأكد من وجود مصفوفة المواد
-                    'materials.*.id' => 'required|exists:scrapped_materials,id', // معرف عنصر ScrappedMaterial المحدد
-                    'materials.*.location_id' => [ // الموقع الذي سيتم إتلاف العنصر منه
-                        'required',
-                        'exists:locations,id',
-                    ],
-                    'materials.*.scrapped_quantity_approved' => [ // الكمية الفعلية المعتمدة للإتلاف من هذا الموقع
-                        'required',
-                        'numeric',
-                        'min:0.01',
-                    ],
-                ]);
+                // ** لا يوجد validator هنا للكميات المعتمدة **
+                // المدير يوافق على المذكرة ككل، والكميات المعتمدة هي الكميات التي حددها أمين المستودع أصلاً.
 
-                if ($validator->fails()) {
-                    throw new \Illuminate\Validation\ValidationException($validator); // إطلاق استثناء التحقق ليتم التقاطه بواسطة الـ catch block
-                }
-
-                $requestMaterials = collect($request->materials); // تحويل إلى مجموعة لتسهيل البحث
-
-                // الحلقة الأولى: تنفيذ جميع التحققات من الكمية والسعة قبل أي خصومات
+                // الحلقة: تنفيذ الخصومات والتحديثات الفعلية
                 foreach ($scrapNote->materials as $material) {
-                    $requestMaterial = $requestMaterials->firstWhere('id', $material->id);
+                    $productId = $material->product_id;
+                    $quantityToScrap = $material->quantity; // <--- استخدام الكمية الأصلية التي طلبها أمين المستودع
+                    $locationId = $material->location_id;   // <--- استخدام الـ location_id المخزن أصلاً
 
-                    if (!$requestMaterial) {
-                        throw new \Exception("تفاصيل الكمية والموقع للمادة التالفة (ID: {$material->id}) مفقودة من الطلب.");
+                    // إذا كانت الكمية الأصلية صفر أو أقل، لا نقوم بأي خصم أو حركة لهذه المادة
+                    if ($quantityToScrap <= 0) {
+                        $material->update(['quantity_approved' => 0]);
+                        continue;
                     }
 
-                    $productId = $material->product_id;
-                    $scrappedQuantityApproved = $requestMaterial['scrapped_quantity_approved'];
-                    $locationId = $requestMaterial['location_id'];
-
+                    // **تحققات إضافية (مهمة جداً):**
+                    // إعادة التحقق من توفر الكمية في الموقع **قبل** الخصم الفعلي.
+                    // هذا يمنع المشاكل إذا تم سحب المنتج من الموقع بين وقت إنشاء المذكرة والموافقة عليها.
                     $location = Location::find($locationId);
                     if (!$location) {
-                        throw new \Exception("الموقع (ID: {$locationId}) غير موجود.");
+                        throw new \Exception("الموقع (ID: {$locationId}) غير موجود للمادة التالفة (ID: {$material->id}).");
                     }
-
-                    // التحقق مما إذا كانت وحدة المنتج تتطابق مع نوع وحدة سعة الموقع
                     if ($material->product->unit !== $location->capacity_unit_type) {
                         throw new \Exception("لا يمكن إتلاف المنتج (وحدته: {$material->product->unit}) من الموقع (وحدته: {$location->capacity_unit_type}). يجب أن تتطابق الوحدات.");
                     }
-
-                    // التحقق مما إذا كانت الكمية المطلوبة للإتلاف من هذا الموقع متاحة
                     $productLocation = ProductLocation::where('product_id', $productId)
                         ->where('location_id', $locationId)
                         ->first();
-
-                    if (!$productLocation || $productLocation->quantity < $scrappedQuantityApproved) {
+                    if (!$productLocation || $productLocation->quantity < $quantityToScrap) {
                         $availableInLocation = $productLocation ? $productLocation->quantity : 0;
-                        throw new \Exception("الكمية المطلوبة للإتلاف ({$scrappedQuantityApproved}) للمنتج '{$material->product->name}' غير متوفرة في الموقع '{$location->name}' (المتاح: {$availableInLocation}).");
+                        throw new \Exception("الكمية المطلوبة للإتلاف ({$quantityToScrap}) للمنتج '{$material->product->name}' غير متوفرة حالياً في الموقع '{$location->name}' (المتاح: {$availableInLocation}). **يرجى رفض المذكرة وإعادة إنشائها بكميات صحيحة.**");
                     }
 
-                    // التأكد أيضاً من أن الكمية المقبولة لا تتجاوز الكمية الأصلية المطلوبة في المذكرة
-                    if ($scrappedQuantityApproved > $material->quantity) {
-                        throw new \Exception("الكمية المقبولة للإتلاف ({$scrappedQuantityApproved}) للمنتج '{$material->product->name}' لا يمكن أن تتجاوز الكمية المطلوبة في المذكرة ({$material->quantity}).");
-                    }
-                }
-
-                // الحلقة الثانية: تنفيذ الخصومات والتحديثات الفعلية إذا مرت جميع التحققات
-                foreach ($scrapNote->materials as $material) {
-                    $requestMaterial = $requestMaterials->firstWhere('id', $material->id);
-
-                    $productId = $material->product_id;
-                    $scrappedQuantityApproved = $requestMaterial['scrapped_quantity_approved'];
-                    $locationId = $requestMaterial['location_id'];
-
-                    $location = Location::find($locationId); // إعادة جلب الموقع للسلامة
-                    $productLocation = ProductLocation::where('product_id', $productId)
-                        ->where('location_id', $locationId)
-                        ->first(); // إعادة جلب ProductLocation للسلامة
-
-                    // تحديث عنصر ScrappedMaterial بالكمية المقبولة والموقع
+                    // تحديث عنصر ScrappedMaterial بالكمية الأصلية كموافقة عليها
                     $material->update([
-                        'quantity_approved' => $scrappedQuantityApproved,
-                        'location_id' => $locationId, // تخزين الموقع الذي تم الإتلاف منه
+                        'quantity_approved' => $quantityToScrap, // الكمية المعتمدة هي نفسها الكمية المطلوبة
                     ]);
 
                     // الخصم من product_locations
-                    $productLocation->decrement('quantity', $scrappedQuantityApproved);
+                    $productLocation->decrement('quantity', $quantityToScrap);
                     if ($productLocation->quantity <= 0) {
                         $productLocation->delete(); // اختيارياً: حذف السجل إذا أصبحت الكمية صفراً أو أقل
                     }
 
                     // الخصم من locations.used_capacity_units
-                    $location->decrement('used_capacity_units', $scrappedQuantityApproved);
+                    $location->decrement('used_capacity_units', $quantityToScrap);
 
                     // تحديث المخزون الإجمالي (Stocks)
                     $stock = Stock::firstOrCreate(
-                        ['product_id' => $productId, 'warehouse_id' => $location->warehouse_id], // المخزون مرتبط بالمنتج والمستودع
+                        ['product_id' => $productId, 'warehouse_id' => $location->warehouse_id],
                         ['quantity' => 0]
                     );
 
                     $prvQuantity = $stock->quantity;
-                    $stock->decrement('quantity', $scrappedQuantityApproved);
+                    $stock->decrement('quantity', $quantityToScrap);
 
                     // تسجيل حركة المنتج (ProductMovement)
                     ProductMovement::create([
                         'product_id' => $productId,
                         'warehouse_id' => $location->warehouse_id,
-                        'type' => 'scrap', // نوع الحركة
+                        'type' => 'scrap',
                         'reference_serial' => $this->generateSerialNumberPM(),
                         'prv_quantity' => $prvQuantity,
-                        'note_quantity' => $scrappedQuantityApproved,
+                        'note_quantity' => $quantityToScrap,
                         'after_quantity' => $stock->quantity,
                         'date' => now(),
-                        'reference_type' => 'ScrappedMaterial', // الربط بعنصر ScrappedMaterial المحدد
+                        'reference_type' => 'ScrappedMaterial',
                         'reference_id' => $material->id,
                         'user_id' => $user->id,
-                        'notes' => 'إتلاف المنتج ' . $material->product->name . ' من الموقع ' . $location->name,
+                        'notes' => 'إتلاف المنتج ' . $material->product->name . ' من الموقع ' . $location->name . ' بناءً على موافقة مذكرة التلف ' . $scrapNote->serial_number,
                     ]);
                 }
 
                 // تحديث حالة مذكرة التلف
                 $scrapNote->update([
                     'status' => ScrapNote::STATUS_APPROVED,
-                    'approved_by' => $user->id, // استخدام معرف المستخدم المصادق عليه
+                    'approved_by' => $user->id,
                     'approved_at' => now(),
                 ]);
             });
 
             return $this->successResponse(
-                'تمت الموافقة على مذكرة التلف وتنقيص الكميات بنجاح.',
-                null // لا توجد بيانات محددة مطلوبة لهذه الرسالة الناجحة
+                null,'تمت الموافقة على مذكرة التلف وتنقيص الكميات بنجاح.'
             );
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            // إعادة إطلاق استثناءات التحقق ليتم التعامل معها بواسطة validationErrorResponse
-            return $this->validationErrorResponse($e->validator);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) { // استخدام Throwable لأخطاء أوسع
+            DB::rollBack();
             return $this->errorResponse(
                 message: 'فشل في الموافقة على المذكرة: ' . $e->getMessage(),
-                code: 422, // 422 لأخطاء التحقق الخاصة بالتطبيق/المنطق مثل الكمية غير الكافية
+                code: 422,
                 internalCode: 'SCRAP_NOTE_APPROVAL_FAILED'
             );
         }
     }
-
     public function reject(Request $request, $id)
     {
         $request->validate([

@@ -22,5 +22,6 @@ class DatabaseSeeder extends Seeder
 
         $this->call(BuildingsSeeder::class);
         //$this->call(RoomSeeder::class);
+        $this->call(LocationSeeder::class);
     }
 }
