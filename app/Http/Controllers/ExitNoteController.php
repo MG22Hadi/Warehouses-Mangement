@@ -7,9 +7,12 @@ use App\Models\CustodyItem;
 use App\Models\EntryNote;
 use App\Models\ExitNote;
 use App\Models\ExitNoteItem;
+use App\Models\Location;
 use App\Models\MaterialRequest;
 use App\Models\Product;
+use App\Models\ProductLocation;
 use App\Models\ProductMovement;
+use App\Models\Stock;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -24,7 +27,18 @@ class ExitNoteController extends Controller
     public function index()
     {
         try {
-            $notes = ExitNote::withCount('items') // هنا نستخدم withCount بدلاً of with
+            // تحميل العلاقات المتداخلة:
+            // - 'warehouse': المستودع الذي خرجت منه المذكرة (إذا كانت موجودة).
+            // - 'user': المستخدم الذي أنشأ المذكرة (إذا كانت موجودة).
+            // - 'items.product': تفاصيل المنتج لكل عنصر في المذكرة.
+            // - 'items.location': تفاصيل الموقع الذي خرج منه المنتج لكل عنصر.
+            $notes = ExitNote::withCount('items')
+                ->with([
+                    'warehouse',    //   علاقة المستودع
+                    'user',         //   علاقة المستخدم
+                    'items.product',  //   تحميل تفاصيل المنتج لكل عنصر إخراج
+                    'items.location'  //   تحميل تفاصيل الموقع لكل عنصر إخراج
+                ])
                 ->get();
 
             return $this->successResponse($notes, 'تم جلب المذكرات مع عدد الأصناف بنجاح');
@@ -149,6 +163,7 @@ class ExitNoteController extends Controller
             'items.*.warehouse_id' => 'required|exists:warehouses,id',
             'items.*.quantity' => 'required|numeric|min:0.01',
             'items.*.notes' => 'nullable|string|max:500',
+            'items.*.location_id' => 'required|exists:locations,id', // <--- جديد: يجب تحديد الموقع
         ]);
 
         if ($validator->fails()) {
@@ -159,11 +174,12 @@ class ExitNoteController extends Controller
             $exitNote = null;
             $custody = null;
             $pendingCustodyItems = [];
-            $requesterId = null; // **جديد:** متغير لتخزين requester_id
+            $requesterId = null;
 
             DB::transaction(function () use ($request, &$exitNote, &$custody, &$pendingCustodyItems, &$requesterId) {
                 $serialNumber = $this->generateSerialNumber();
-                $pmSerialNumber = $this->generateSerialNumberPM();
+                // $pmSerialNumber -- تم نقلها داخل الحلقة
+
                 $materialRequest = MaterialRequest::with([
                     'requestedBy',
                     'items' => function($query) {
@@ -175,17 +191,11 @@ class ExitNoteController extends Controller
                     throw new \Exception('لا يمكن إنشاء سند خروج لطلب مواد غير معتمد.');
                 }
 
-                // **التصحيح الحاسم هنا:**
-                // التأكد من وجود المستخدم الذي طلب المواد قبل المتابعة.
-                // إذا لم يكن موجوداً، نقوم بإطلاق استثناء.
-
                 if (!$materialRequest->requestedBy) {
                     throw new \Exception('المستخدم الذي طلب المواد غير موجود أو غير مرتبط بطلب المواد. يرجى التحقق من تكامل البيانات.');
                 }
 
-                // **بعد هذا التحقق، يمكننا تخزين requester_id بأمان**
                 $requesterId = $materialRequest->requestedBy->id;
-
 
                 $requestItems = collect($request->items);
                 $materialRequestItems = $materialRequest->items;
@@ -209,36 +219,75 @@ class ExitNoteController extends Controller
                         throw new \Exception("الكمية المطلوبة ({$item['quantity']}) للمنتج ID {$item['product_id']} أكبر من الكمية المعتمدة ({$matchingItem->quantity_approved}).");
                     }
 
-                    $stock = DB::table('stocks')
-                        ->where('warehouse_id', $item['warehouse_id'])
+                    // 1. جلب المنتج والموقع
+                    $product = Product::find($item['product_id']);
+                    $location = Location::find($item['location_id']);
+                    $warehouseId = $item['warehouse_id'];
+                    $quantityToSubtract = $item['quantity'];
+
+                    // التحقق من وجود المنتج والموقع
+                    if (!$product) {
+                        throw new \Exception("المنتج (ID: " . $item['product_id'] . ") غير موجود.");
+                    }
+                    if (!$location) {
+                        throw new \Exception("الموقع (ID: " . $item['location_id'] . ") غير موجود.");
+                    }
+
+                    // 2. التحقق من مطابقة المستودع: تأكد أن الموقع ينتمي للمستودع المحدد في الـ item
+                    if ($location->warehouse_id != $warehouseId) {
+                        throw new \Exception("الموقع (ID: " . $item['location_id'] . ") لا ينتمي للمستودع المحدد (ID: " . $warehouseId . ").");
+                    }
+
+                    // 3. التحقق من مطابقة نوع الوحدة بين المنتج والموقع
+                    if ($location->capacity_unit_type != $product->unit) {
+                        throw new \Exception("لا يمكن سحب المنتج (وحدته: " . $product->unit . ") من الموقع (وحدته: " . $location->capacity_unit_type . "). يجب أن تتطابق الوحدات.");
+                    }
+
+                    // 4. التحقق من الكمية المتوفرة في ProductLocation
+                    $productLocation = ProductLocation::where('product_id', $item['product_id'])
+                        ->where('location_id', $item['location_id'])
+                        ->first();
+
+                    if (!$productLocation || $productLocation->quantity < $quantityToSubtract) {
+                        throw new \Exception("الكمية المطلوبة ({$quantityToSubtract} {$product->unit}) للمنتج '{$product->name}' غير متوفرة في الموقع '{$location->name}'. الكمية المتاحة: " . ($productLocation ? $productLocation->quantity : 0) . " {$product->unit}.");
+                    }
+
+                    // 5. تحديث كمية المنتج في الموقع (ProductLocation)
+                    $productLocation->decrement('quantity', $quantityToSubtract);
+
+                    // 6. تحديث السعة المستخدمة للموقع (Location)
+                    $location->decrement('used_capacity_units', $quantityToSubtract);
+
+                    // 7. تحديث كمية المخزون الإجمالي (Stock)
+                    $stock = Stock::where('warehouse_id', $warehouseId)
                         ->where('product_id', $item['product_id'])
                         ->first();
 
-                    if (!$stock || $stock->quantity < $item['quantity']) {
-                        throw new \Exception("الكمية غير متوفرة في المستودع المحدد للمنتج ID {$item['product_id']}.");
+                    if (!$stock || $stock->quantity < $quantityToSubtract) {
+                        // هذا الشرط يجب أن يكون قد تم التقاطه بواسطة التحقق من productLocation
+                        // ولكن للموثوقية يمكن الاحتفاظ به أو إزالته إذا كنا نثق بـ productLocation تمامًا
+                        throw new \Exception("الكمية غير متوفرة في المخزون العام للمستودع للمنتج ID {$item['product_id']}.");
                     }
 
-                    // إنشاء عنصر سند الخروج
+                    $prvStockQuantity = $stock->quantity; // الكمية قبل الخصم من المخزون العام
+                    $stock->decrement('quantity', $quantityToSubtract);
+                    $afterStockQuantity = $stock->quantity; // الكمية بعد الخصم من المخزون العام
+
+                    // 8. إنشاء عنصر سند الخروج
                     ExitNoteItem::create([
                         'exit_note_id' => $exitNote->id,
                         'product_id' => $item['product_id'],
-                        'warehouse_id' => $item['warehouse_id'],
+                        'warehouse_id' => $warehouseId,
                         'quantity' => $item['quantity'],
                         'notes' => $item['notes'] ?? null,
+                        // لا يوجد location_id هنا، لأنها تسجل عملية الخروج ككل
                     ]);
 
-                    // تحديث كمية المخزون
-                    DB::table('stocks')
-                        ->where('warehouse_id', $item['warehouse_id'])
-                        ->where('product_id', $item['product_id'])
-                        ->decrement('quantity', $item['quantity']);
-
-                    $product = Product::findOrFail($item['product_id']);
-
+                    // 9. إنشاء عهدة للمواد غير المستهلكة (كما في الكود الأصلي)
                     if (!$product->consumable) {
                         if (!$custody) {
                             $custody = Custody::create([
-                                'user_id' => $requesterId, // **استخدام requesterId الذي تم التحقق منه مسبقاً**
+                                'user_id' => $requesterId,
                                 'date' => $exitNote->date,
                                 'notes' => 'عهدة تلقائية للمواد غير المستهلكة من سند الإخراج رقم: ' . $exitNote->serial_number,
                             ]);
@@ -250,25 +299,27 @@ class ExitNoteController extends Controller
                             'exit_note_id' => $exitNote->id,
                             'quantity' => $item['quantity'],
                             'notes' => $item['notes'] ?? null,
-                            'room_id' => null,
+                            'room_id' => null, // يمكن تحديثها لاحقاً بواسطة route assignRoomsToCustodyItems
                         ]);
                         $pendingCustodyItems[] = $custodyItem->load('product');
                     }
 
-                    // إنشاء حركة المنتج
+                    // 10. إنشاء حركة المنتج
+                    $pmSerialNumber = $this->generateSerialNumberPM(); // <--- توليد رقم تسلسلي فريد هنا لكل حركة
+
                     ProductMovement::create([
                         'product_id' => $item['product_id'],
-                        'warehouse_id' => $item['warehouse_id'],
+                        'warehouse_id' => $warehouseId,
                         'type' => 'exit',
-                        'reference_serial' => $pmSerialNumber,
-                        'prv_quantity' => $stock->quantity,
+                        'reference_serial' => $pmSerialNumber, // فريد لكل حركة
+                        'prv_quantity' => $prvStockQuantity, // الكمية قبل الخصم من المخزون العام
                         'note_quantity' => $item['quantity'],
-                        'after_quantity' => $stock->quantity - $item['quantity'],
+                        'after_quantity' => $afterStockQuantity, // الكمية بعد الخصم من المخزون العام
                         'date' => $request->date,
                         'reference_type' => 'ExitNote',
                         'reference_id' => $exitNote->id,
                         'user_id' => $request->user()->id,
-                        'notes' => $item['notes'] ?? 'إدخال من سند رقم: ' . $serialNumber,
+                        'notes' => $item['notes'] ?? 'إخراج من سند رقم: ' . $serialNumber,
                     ]);
                 }
 
@@ -276,11 +327,10 @@ class ExitNoteController extends Controller
             });
 
             // إعادة تحميل سند الإخراج بعد انتهاء الـ transaction
-            // لا نحتاج لتحميل materialRequest.requestedBy هنا مرة أخرى لأننا لدينا requesterId
             $exitNote = ExitNote::with([
                 'items.product',
                 'items.warehouse',
-                'materialRequest' // نكتفي بتحميل materialRequest هنا إذا أردت تفاصيلها
+                'materialRequest'
             ])->find($exitNote->id);
 
             // الاستجابة النهائية
@@ -288,7 +338,7 @@ class ExitNoteController extends Controller
                 [
                     'exit_note' => $exitNote,
                     'pending_custody_items' => $pendingCustodyItems,
-                    'requester_id' => $requesterId // **استخدام requesterId الذي تم تخزينه بأمان**
+                    'requester_id' => $requesterId
                 ],
                 'تم إنشاء سند الخروج بنجاح. يرجى تحديد الغرف للمواد غير المستهلكة.'
             );
@@ -307,10 +357,24 @@ class ExitNoteController extends Controller
     public function show($id)
     {
         try {
-            $note = ExitNote::findOrFail($id);
+            // تحميل العلاقات المتداخلة:
+            // - 'warehouse': المستودع الذي خرجت منه المذكرة.
+            // - 'user': المستخدم الذي أنشأ المذكرة.
+            // - 'items.product': تفاصيل المنتج لكل عنصر في المذكرة.
+            // - 'items.location': تفاصيل الموقع الذي خرج منه المنتج لكل عنصر.
+            $note = ExitNote::with([
+                'warehouse',    // <--- إضافة: تحميل المستودع
+                'user',         // <--- إضافة: تحميل المستخدم
+                'items.product',    // <--- جديد: تحميل تفاصيل المنتج لكل عنصر إخراج
+                'items.location'    // <--- جديد: تحميل تفاصيل الموقع لكل عنصر إخراج
+            ])
+                ->findOrFail($id);
             return $this->successResponse($note, 'تم جلب المذكرة بنجاح');
-        } catch (\Exception $e) {
-            return $this->handleExceptionResponse($e, 'المذكرة غير موجودة');
+        }catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            // استخدام notFoundResponse لرسائل 404
+            return $this->notFoundResponse('سند الإخراج غير موجود.');
+        }catch (\Exception $e) {
+            return $this->handleExceptionResponse($e);
         }
     }
 
@@ -380,5 +444,6 @@ class ExitNoteController extends Controller
             }
         }
 
-        return "($folderNumber/$noteNumber)";}
+        return "($folderNumber/$noteNumber)";
+    }
 }

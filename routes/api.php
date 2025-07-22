@@ -8,6 +8,7 @@ use App\Http\Controllers\CustodyReturnController;
 use App\Http\Controllers\EntryNoteController;
 use App\Http\Controllers\ExitNoteController;
 use App\Http\Controllers\InstallationReportController;
+use App\Http\Controllers\LocationController;
 use App\Http\Controllers\MaterialRequestController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\RoomController;
@@ -56,6 +57,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/products',[ProductController::class,'index']);
     Route::get('products/show/{id}', [ProductController::class, 'show']);
 
+    //  LOCATIONS
+    // مسار لإنشاء موقع جديد
+    Route::post('/locations', [LocationController::class, 'store']);
+    // مسار لعرض جميع المواقع
+    Route::get('/locations', [LocationController::class, 'index']);
+    // مسار للحصول على مواقع منتج معين
+    Route::get('/locations/product-locations', [LocationController::class, 'getProductLocations']);
+
+// مسار للبحث عن المواقع المتاحة (POST لأنها تستقبل بيانات في الـ body)
+    Route::post('/locations/search-available', [LocationController::class, 'searchAvailableLocations']);
 
     //MATERIAL REQUEST
     Route::post('/MRequest',[MaterialRequestController::class,'store']);

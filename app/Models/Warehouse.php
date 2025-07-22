@@ -9,7 +9,7 @@ class Warehouse extends Model
     protected $fillable = [
         'name',
         'location',
-        'type'
+        //'type'
     ];
 
     public function stock()
@@ -30,5 +30,11 @@ class Warehouse extends Model
     public function exitNotes()
     {
         return $this->hasMany(ExitNote::class);
+    }
+
+    // علاقة: المستودع يمكن أن يحتوي على العديد من المواقع
+    public function locations()
+    {
+        return $this->hasMany(Location::class);
     }
 }

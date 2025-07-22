@@ -15,6 +15,7 @@ class CustodyReturnItem extends Model
         'returned_quantity',
         'returned_quantity_accepted',
         'warehouse_id',
+        'location_id',
         'user_notes',
         'warehouse_manager_status',
         'warehouse_manager_notes',

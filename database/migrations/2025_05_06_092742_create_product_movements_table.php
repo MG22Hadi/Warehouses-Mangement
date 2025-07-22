@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('product_id')->constrained('products');
             $table->enum('type', ['entry', 'exit', 'receive', 'install' , 'scrap']);
-            $table->string('reference_serial')->unique();
+            $table->string('reference_serial');
             $table->float('prv_quantity');
             $table->float( 'note_quantity');
             $table->float('after_quantity');
