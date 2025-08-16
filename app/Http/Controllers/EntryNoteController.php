@@ -146,6 +146,7 @@ class EntryNoteController extends Controller
                         'entry_note_id' => $entryNote->id,
                         'product_id' => $item['product_id'],
                         'warehouse_id' => $item['warehouse_id'],
+                        'location_id' => $item['location_id'],
                         'quantity' => $item['quantity'],
                         'notes' => $item['notes'] ?? null,
                         'created_by' => $request->user()->id
