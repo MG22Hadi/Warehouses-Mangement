@@ -67,4 +67,18 @@ class Product extends Model
     {
         return $this->hasMany(ProductMovement::class);
     }
+
+    // علاقة: المنتج يمكن أن يتواجد في العديد من المواقع (عبر جدول product_locations)
+    public function locations()
+    {
+        return $this->belongsToMany(Location::class, 'product_locations')
+            ->withPivot('quantity')
+            ->withTimestamps();
+    }
+
+    // علاقة: المنتج لديه العديد من سجلات product_locations
+    public function productLocations()
+    {
+        return $this->hasMany(ProductLocation::class);
+    }
 }

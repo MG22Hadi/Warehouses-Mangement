@@ -14,8 +14,8 @@ return new class extends Migration
             $table->foreignId('product_id')->nullable()->constrained('products');
             $table->string('product_name'); // نسخة من اسم المنتج وقت التركيب
             $table->decimal('quantity', 10, 2);
-            $table->decimal('unit_price', 12, 2);
-            $table->decimal('total_price', 12, 2);
+            $table->decimal('unit_price', 12, 2)->nullable();
+            $table->decimal('total_price', 12, 2)->nullable();
             $table->text('notes')->nullable();
             $table->timestamps();
         });

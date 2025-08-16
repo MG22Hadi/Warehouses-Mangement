@@ -5,6 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\CustodyItem;
 use App\Models\CustodyReturn;
 use App\Models\CustodyReturnItem;
+use App\Models\Location;
+use App\Models\Product;
+use App\Models\ProductLocation;
+use App\Models\ProductMovement;
 use App\Models\Stock;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
@@ -187,6 +191,11 @@ class CustodyReturnController extends Controller
                 'min:0',
                 'max:' .$custodyReturnItem->returned_quantity,
             ],
+            // التحقق من معرف الموقع
+            'location_id'=>[
+                Rule::requiredIf($request->input('warehouse_manager_status')==='accepted'),
+                'exists:locations,id',
+            ],
         ]);
 
         if ($validator->fails()) {
@@ -204,6 +213,8 @@ class CustodyReturnController extends Controller
             $custodyReturnItem->warehouse_manager_status = $newStatus;
             $custodyReturnItem->warehouse_manager_notes = $notes;
             $custodyReturnItem->returned_quantity_accepted = $acceptedQuantity; // حفظ الكمية المقبولة
+            // حفظ الـ location_id في CustodyReturnItem إذا تم قبوله
+            $custodyReturnItem->location_id=$request->input('location_id',null);
             $custodyReturnItem->save();
 
             // تحديث المخزون إذا كانت الحالة 'accepted'
@@ -211,7 +222,121 @@ class CustodyReturnController extends Controller
                 // جلب Product ID و Warehouse ID من CustodyReturnItem
                 $productId=$custodyReturnItem->custodyItem->product_id;
                 $warehouseId=$custodyReturnItem->warehouse_id;
+                $locationId=$request->input('location_id');// الموقع الذي اختاره أمين المستودع
 
+
+
+
+
+                // <--- جديد: جلب المنتج والموقع للتحقق من السعة والوحدة
+                $product = Product::find($productId);
+                $location = Location::find($locationId);
+
+                // التحقق من وجود المنتج والموقع (قد لا يكون ضرورياً جداً إذا كانت rules Validation قوية)
+                if (!$product) {
+                    throw new \Exception("المنتج (ID: " . $productId . ") غير موجود.");
+                }
+                if (!$location) {
+                    throw new \Exception("الموقع (ID: " . $locationId . ") غير موجود.");
+                }
+
+                // التحقق من مطابقة المستودع: تأكد أن الموقع ينتمي للمستودع المحدد في الـ CustodyReturnItem
+                if ($location->warehouse_id != $warehouseId) {
+                    throw new \Exception("الموقع (ID: " . $locationId . ") لا ينتمي للمستودع المحدد (ID: " . $warehouseId . ").");
+                }
+
+                // التحقق من مطابقة نوع الوحدة بين المنتج والموقع
+                if ($location->capacity_unit_type != $product->unit) {
+                    throw new \Exception("لا يمكن إرجاع المنتج (وحدته: " . $product->unit . ") إلى الموقع (وحدته: " . $location->capacity_unit_type . "). يجب أن تتطابق الوحدات.");
+                }
+
+                // التحقق من السعة المتاحة في الموقع
+                $currentUsedCapacity = $location->used_capacity_units;
+                $locationCapacity = $location->capacity_units;
+                $quantityToReturn = $acceptedQuantity;
+
+                if (($currentUsedCapacity + $quantityToReturn) > $locationCapacity) {
+                    $availableCapacity = $locationCapacity - $currentUsedCapacity;
+                    throw new \Exception("الموقع '" . $location->name . "' لا يملك سعة كافية لاستيعاب الكمية المرتجعة. السعة المتاحة هي: " . $availableCapacity . " " . $location->capacity_unit_type . ". الكمية المراد إرجاعها: " . $quantityToReturn . " " . $product->unit . ".");
+                }
+
+                // <--- جديد: تحديث أو إنشاء سجل product_locations
+                $productLocation = ProductLocation::firstOrNew([
+                    'product_id' => $productId,
+                    'location_id' => $locationId,
+                ]);
+                $productLocation->quantity += $quantityToReturn;
+                // عند الإرجاع، لا نعرف بالضرورة internal_shelf_number
+                // يمكن تركها null أو تحديثها إذا كانت الواجهة تسمح بذلك
+                $productLocation->save();
+
+                // <--- جديد: تحديث السعة المستخدمة للموقع
+                $location->increment('used_capacity_units', $quantityToReturn);
+
+
+                // 5. تحديث المخزون الإجمالي (Stocks)
+                $stock = Stock::firstOrCreate(
+                    ['product_id' => $productId, 'warehouse_id' => $warehouseId],
+                    ['quantity' => 0]
+                );
+
+                // جلب الكمية السابقة قبل التحديث لـ ProductMovement
+                $prvQuantity = $stock->quantity;
+
+                // زيادة الكمية في المخزون
+                $stock->increment('quantity', $acceptedQuantity);
+
+
+                // 6. إنشاء حركة المنتج (ProductMovement) لإرجاع العهدة
+                ProductMovement::create([
+                    'product_id' => $productId,
+                    'warehouse_id' => $warehouseId,
+                    'type' => 'custody_return', // نوع جديد للحركة
+                    'reference_serial' => $this->generateSerialNumberPM(),
+                    'prv_quantity' => $prvQuantity, // الكمية في Stocks قبل الإضافة
+                    'note_quantity' => $acceptedQuantity, // الكمية المضافة
+                    'after_quantity' => $stock->quantity, // الكمية في Stocks بعد الإضافة
+                    'date' => now(), // تاريخ الحركة
+                    'reference_type' => 'CustodyReturnItem', // يمكن ربطها بعنصر إرجاع العهدة
+                    'reference_id' => $custodyReturnItem->id,
+                    'user_id' => $user->id,
+                    'notes' => 'إرجاع عهدة للمنتج ' . $product->name . ' إلى الموقع ' . $location->name,
+                ]);
+            }
+
+            // تحديث حالة طلب الإرجاع الرئيسي (CustodyReturn) (يبقى كما هو)
+            $custodyReturn = $custodyReturnItem->custodyReturn;
+            $allReturnItems = $custodyReturn->items;
+
+            $allProcessed = $allReturnItems->every(function ($item) {
+                return $item->warehouse_manager_status !== 'pending_review';
+            });
+
+            if ($allProcessed) {
+                $hasRejectedOrDamaged = $allReturnItems->some(function ($item) {
+                    return in_array($item->warehouse_manager_status, ['rejected', 'damaged', 'total_loss']);
+                });
+
+                if ($hasRejectedOrDamaged) {
+                    $custodyReturn->status = 'partially_completed';
+                } else {
+                    $custodyReturn->status = 'completed';
+                }
+                $custodyReturn->processed_by_warehouse_keeper_id = $user->id;
+                $custodyReturn->processed_at = now();
+                $custodyReturn->save();
+            }
+
+            DB::commit();
+
+            return $this->successResponse(
+                'تمت معالجة عنصر الإرجاع بنجاح.', // الرسالة أولاً
+                $custodyReturnItem->load('custodyReturn', 'custodyItem.product', 'warehouse', 'location') // تحميل علاقة الموقع الجديد
+            );
+
+
+
+               /**
                 // البحث عن سجل المخزون أو إنشائه إذا لم يكن موجوداً
                 $stock=Stock::firstOrCreate(
                     ['product_id'=>$productId,'warehouse_id'=>$warehouseId],
@@ -253,6 +378,7 @@ class CustodyReturnController extends Controller
                 $custodyReturnItem->load('custodyReturn','custodyItem.product','warehouse'),// تحميل العلاقات للاستجابة
                 'تمت معالجة عنصر الإرجاع بنجاح'
             );
+                * */
         } catch (\Throwable $e){
             DB::rollBack();
             return $this->errorResponse(
@@ -273,6 +399,7 @@ class CustodyReturnController extends Controller
             'user', // المستخدم الذي قدم الطلب
             'items.custodyItem.product', // تفاصيل المنتج الأصلي
             'items.warehouse', // المستودع الذي تم الإرجاع إليه
+            'items.location', //  تحميل تفاصيل الموقع الذي تم الإرجاع إليه
         ])
             ->latest() // ترتيب حسب الأحدث
             //->paginate($perPage)
@@ -294,6 +421,7 @@ class CustodyReturnController extends Controller
             'user',
             'items.custodyItem.product',
             'items.warehouse',
+            'items.location', //  تحميل تفاصيل الموقع الذي تم الإرجاع إليه
         ])->find($id);
 
         if (!$custodyReturn) {
@@ -353,7 +481,84 @@ class CustodyReturnController extends Controller
 
         return $this->successResponse($pendingItems,'تم استرجاع طلبات الإرجاع المعلقة بنجاح.');
     }
+
+
+//
+//    //لتوليد السيريال نمبر
+//    private function generateSerialNumber(): string
+//    {
+//        $currentYear = date('Y');
+//
+//        // الحصول على آخر مذكرة لهذه السنة
+//        $lastEntry = ExitNote::whereYear('created_at', $currentYear)
+//            ->orderBy('id', 'desc')
+//            ->first();
+//
+//        // تحديد الأرقام الجديدة
+//        if (!$lastEntry) {
+//            // أول مذكرة في السنة
+//            $folderNumber = 1;
+//            $noteNumber = 1;
+//        } else {
+//            // فك الترميز من السيريال السابق
+//            $serial = trim($lastEntry->serial_number, '()');
+//            list($lastFolderNumber, $lastNoteNumber) = explode('/', $serial);
+//
+//            $lastFolderNumber = (int)$lastFolderNumber;
+//            $lastNoteNumber = (int)$lastNoteNumber;
+//
+//            // حساب الأرقام الجديدة
+//            $noteNumber = $lastNoteNumber + 1;
+//            $folderNumber = $lastFolderNumber;
+//
+//            if ($noteNumber % 50 == 1 && $noteNumber > 50) {
+//                $folderNumber = floor($noteNumber / 50) + 1;
+//            }
+//        }
+//
+//        return "($folderNumber/$noteNumber)";
+//    }
+
+    protected function generateSerialNumberPM()
+    {
+        $currentYear = date('Y');
+
+        // الحصول على آخر مذكرة لهذه السنة
+        $lastEntry = ProductMovement::whereYear('created_at', $currentYear)
+            ->orderBy('id', 'desc')
+            ->first();
+
+        // تحديد الأرقام الجديدة
+        if (!$lastEntry) {
+            // أول مذكرة في السنة
+            $folderNumber = 1;
+            $noteNumber = 1;
+        } else {
+            // فك الترميز من السيريال السابق
+            $serial = trim($lastEntry->reference_serial, '()');
+            list($lastFolderNumber, $lastNoteNumber) = explode('/', $serial);
+
+            $lastFolderNumber = (int)$lastFolderNumber;
+            $lastNoteNumber = (int)$lastNoteNumber;
+
+            // حساب الأرقام الجديدة
+            $noteNumber = $lastNoteNumber + 1;
+            $folderNumber = $lastFolderNumber;
+
+            if ($noteNumber % 50 == 1 && $noteNumber > 50) {
+                $folderNumber = floor($noteNumber / 50) + 1;
+            }
+        }
+
+        return "($folderNumber/$noteNumber)";}
+
+
 }
+
+
+
+
+
 
 
 //        $user = Auth::user();

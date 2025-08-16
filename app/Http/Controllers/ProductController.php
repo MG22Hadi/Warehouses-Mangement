@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Product;
+use App\Models\ProductLocation;
 use App\Models\Stock;
 use App\Traits\ApiResponse;
 
@@ -121,6 +122,7 @@ class ProductController extends Controller
         }
     }
 
+    /**  ديستروي قبل اللوكيشن
     public function destroy($id)
     {
         DB::beginTransaction();
@@ -147,8 +149,53 @@ class ProductController extends Controller
             DB::rollBack();
             return $this->errorResponse('فشل في حذف المنتج: ' . $e->getMessage(), 500);
         }
-    }
+    }**/
 
+    public function destroy($id)
+    {
+        DB::beginTransaction();
+
+        try {
+            // التأكد من وجود المنتج
+            $product = Product::findOrFail($id);
+
+            // 1. التحقق من وجود كميات للمنتج في المواقع (product_locations)
+            if (ProductLocation::where('product_id', $product->id)->where('quantity', '>', 0)->exists()) {
+                DB::rollBack();
+                return $this->errorResponse('لا يمكن حذف المنتج. ما زالت توجد كميات منه في مواقع تخزين محددة.', 409, 'PRODUCT_HAS_STOCK_IN_LOCATIONS'); // 409 Conflict
+            }
+
+            // 2. التحقق من وجود كميات للمنتج في المخزون العام (stocks)
+            // هذا التحقق قد يكون زائداً إذا كان ProductLocation هو المصدر الوحيد للكميات التفصيلية
+            // ولكن للحماية الإضافية يمكن تركه.
+            if (Stock::where('product_id', $product->id)->where('quantity', '>', 0)->exists()) {
+                DB::rollBack();
+                return $this->errorResponse('لا يمكن حذف المنتج. ما زالت توجد كميات منه في المخزون العام.', 409, 'PRODUCT_HAS_GENERAL_STOCK'); // 409 Conflict
+            }
+
+            // إذا لم تكن هناك كميات متبقية، يمكن حذف السجلات المرتبطة
+            // حذف سجلات ProductLocation المرتبطة بهذا المنتج (الكميات الصفرية)
+            ProductLocation::where('product_id', $product->id)->delete();
+
+            // حذف سجلات Stock المرتبطة بهذا المنتج (الكميات الصفرية)
+            Stock::where('product_id', $product->id)->delete();
+
+            // حذف المنتج
+            $product->delete();
+
+            DB::commit();
+
+            return $this->successResponse('تم حذف المنتج بنجاح.', null); // الرسالة أولاً، ثم البيانات (null هنا)
+
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            DB::rollBack();
+            return $this->notFoundResponse('المنتج غير موجود.'); // استخدام notFoundResponse لرسائل 404
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return $this->errorResponse('فشل في حذف المنتج: ' . $e->getMessage(), 500, 'PRODUCT_DELETION_FAILED');
+        }
+    }
 
     public function index(Request $request)
     {
