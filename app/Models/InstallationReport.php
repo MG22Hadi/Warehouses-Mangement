@@ -8,7 +8,8 @@ class InstallationReport extends Model
 {
     protected $fillable = [
         'created_by',
-        'approved_by',
+        'status',
+        'manager_id',
         'serial_number',
         'location',
         'type',
@@ -34,4 +35,4 @@ class InstallationReport extends Model
     {
         return $this->hasMany(InstallationMaterial::class);
     }
-} 
+}
