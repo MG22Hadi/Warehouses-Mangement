@@ -78,7 +78,7 @@ class CalendarNoteController extends Controller
         $note = CalendarNote::updateOrCreate(
             [
                 'note_date' => $request->note_date,
-                'user_id' => Auth::id()
+                'user_id' => $request->user()->id
             ],
             ['noteContent' => $request->noteContent]
         );

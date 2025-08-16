@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('calendar_notes', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
+            $table->foreignId('user_id')->constrained('warehouse_keepers')->cascadeOnDelete();
             $table->date('note_date')->unique();
             $table->text('noteContent');
             $table->timestamps();
