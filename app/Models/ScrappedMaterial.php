@@ -9,6 +9,7 @@ class ScrappedMaterial extends Model
     protected $fillable = [
         'scrap_note_id',
         'product_id',
+        'warehouse_id',
         'quantity',
         'location_id',
         'notes'
