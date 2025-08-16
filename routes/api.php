@@ -135,6 +135,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // InstallationReport
     Route::get('/allInstallationReport',[InstallationReportController::class,'index']);
+    Route::put('/allInstallationReport/{id}/approve',[InstallationReportController::class,'approve']);
+    Route::put('/allInstallationReport/{id}/reject',[InstallationReportController::class,'reject']);
     Route::get('/InstallationReport/{id}/details',[InstallationReportController::class,'show']);
     Route::post('/InstallationReport/store', [InstallationReportController::class, 'store']);
 
