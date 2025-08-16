@@ -630,6 +630,7 @@ class InstallationReportController extends Controller
                     $unitPrice = $material['unit_price'] ?? null;
                     $productName = $material['product_name'] ?? null;
                     $totalPrice = $unitPrice !== null ? $quantity * $unitPrice : null;
+                    $locationId = $material['location_id'] ?? null;
 
                     if ($request->type === 'stock_usage') {
                         if (!$productId) {
@@ -646,6 +647,7 @@ class InstallationReportController extends Controller
                         'quantity' => $quantity,
                         'unit_price' => $unitPrice,
                         'total_price' => $totalPrice,
+                        'location_id' => $locationId,
                         'notes' => $material['notes'] ?? null,
                     ]);
                 }
