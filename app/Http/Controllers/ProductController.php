@@ -185,7 +185,7 @@ class ProductController extends Controller
 
             DB::commit();
 
-            return $this->successResponse('تم حذف المنتج بنجاح.', null); // الرسالة أولاً، ثم البيانات (null هنا)
+            return $this->successResponse(null,'تم حذف المنتج بنجاح.',);
 
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             DB::rollBack();

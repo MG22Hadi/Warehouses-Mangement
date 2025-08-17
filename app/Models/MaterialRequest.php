@@ -41,7 +41,7 @@ class MaterialRequest extends Model
 
     public function items()
     {
-        return $this->hasMany(MaterialRequestItem::class  );
+        return $this->hasMany(MaterialRequestItem::class);
     }
 
     public function exitNotes()
@@ -50,4 +50,8 @@ class MaterialRequest extends Model
     }
 
 
+    public function manager()
+    {
+        return $this->belongsTo(Manager::class, 'manager_id');
+    }
 }
