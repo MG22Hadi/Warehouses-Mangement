@@ -5,6 +5,7 @@ use App\Http\Controllers\BuildingController;
 use App\Http\Controllers\CalendarNoteController;
 use App\Http\Controllers\CustodyController;
 use App\Http\Controllers\CustodyReturnController;
+use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\EntryNoteController;
 use App\Http\Controllers\ExitNoteController;
 use App\Http\Controllers\InstallationReportController;
@@ -72,6 +73,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/MRequest',[MaterialRequestController::class,'store']);
     Route::get('/allRequestMaterial',[MaterialRequestController::class,'index']);
     Route::get('/pendingRequestMaterial',[MaterialRequestController::class,'pendingRequests']);
+    Route::get('/M-Request/show/{id}',[MaterialRequestController::class,'showRequest']);
     Route::put('/materialRequests/{id}/edit', [MaterialRequestController::class, 'editRequest']);
     Route::put('/materialRequests/{id}/reject', [MaterialRequestController::class, 'rejectRequest']);
     Route::put('/materialRequests/{id}/approve', [MaterialRequestController::class, 'approveRequest']);
@@ -118,6 +120,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('rooms/delete/{id}', [RoomController::class, 'destroy']);
     Route::get('/rooms',[RoomController::class,'index']);
     Route::get('rooms/show/{id}', [RoomController::class, 'show']);
+
+    //DEPARTMENTS
+    Route::post('/departments/store', [DepartmentController::class, 'store']);
+    Route::put('departments/update/{id}', [DepartmentController::class, 'update']);
+    Route::delete('departments/delete/{id}', [DepartmentController::class, 'destroy']);
+    Route::get('/departments',[DepartmentController::class,'index']);
+    Route::get('departments/show/{id}', [DepartmentController::class, 'show']);
+
 
     //CALENDAR
     Route::get('/calendar', [CalendarNoteController::class, 'indexFilter']);

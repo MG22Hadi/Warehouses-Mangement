@@ -12,6 +12,10 @@ class Manager extends Authenticatable
 
     protected $fillable = ['name', 'email', 'password', 'phone'];
 
+    public function departments()
+    {
+        return $this->hasMany(Department::class,'manager_id');
+    }
 
     public function materialRequests()
     {

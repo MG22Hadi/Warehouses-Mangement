@@ -31,6 +31,7 @@ class AuthController extends Controller
         }
 
         $models = [
+            'user'            => \App\Models\User::class,
             'manager'          => \App\Models\Manager::class,
             'warehouseKeeper'  => \App\Models\WarehouseKeeper::class,
         ];
@@ -42,6 +43,8 @@ class AuthController extends Controller
             'email'    => $request->email,
             'phone'    => $request->phone,
             'password' => Hash::make($request->password),
+            'department_id'=> $request->department_id,
+            'job_title'    => $request->job_title,
         ];
 
 
