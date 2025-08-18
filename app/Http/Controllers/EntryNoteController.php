@@ -25,11 +25,13 @@ class EntryNoteController extends Controller
         try {
             $notes = EntryNote::withCount('items') // هنا نستخدم withCount بدلاً of with
 
-            ->with(['warehouse',
-                'user',
-                'items.product',  //  تحميل تفاصيل المنتج لكل عنصر إدخال
-                'items.location'  //  تحميل تفاصيل الموقع لكل عنصر إدخال
-            ])
+                ->with([
+                    'warehouse',
+                    'createdBy',
+                    'user',
+                    'items.product',  //  تحميل تفاصيل المنتج لكل عنصر إدخال
+                    'items.location'  //  تحميل تفاصيل الموقع لكل عنصر إدخال
+                ])
                 ->get();
 
             return $this->successResponse($notes, 'تم جلب المذكرات مع تفاصيل الأصناف والمواقع بنجاح');
@@ -132,7 +134,6 @@ class EntryNoteController extends Controller
                             'created_at' => now(),
                             'updated_at' => now(),
                         ]);
-
                     }
 
                     // تحديث المخزون
@@ -178,10 +179,10 @@ class EntryNoteController extends Controller
 
                     // 9. إنشاء حركة المنتج (يبقى كما هو، مع تحديث prv_quantity و after_quantity)
                     // يجب جلب قيمة المخزون الحالية قبل Increment لتكون prv_quantity صحيحة
-//                    $prevStockQuantity = DB::table('stocks')
-//                        ->where('product_id', $item['product_id'])
-//                        ->where('warehouse_id', $item['warehouse_id'])
-//                        ->value('quantity'); // جلب الكمية بعد التحديث
+                    //                    $prevStockQuantity = DB::table('stocks')
+                    //                        ->where('product_id', $item['product_id'])
+                    //                        ->where('warehouse_id', $item['warehouse_id'])
+                    //                        ->value('quantity'); // جلب الكمية بعد التحديث
 
 
                 }
@@ -193,7 +194,6 @@ class EntryNoteController extends Controller
             });
 
             return $this->successResponse($result['entry_note'], $result['message'], 201);
-
         } catch (\Exception $e) {
             return $this->errorResponse(
                 message: 'فشل في إنشاء مذكرة الدخول: ' . $e->getMessage(),
@@ -215,16 +215,17 @@ class EntryNoteController extends Controller
             // - 'items.location': تفاصيل الموقع الذي دخل إليه المنتج لكل عنصر.
             $note = EntryNote::with([
                 'warehouse',
+                'createdBy',
                 'user',
                 'items.product',    // <--- جديد: تحميل تفاصيل المنتج لكل عنصر إدخال
                 'items.location'    // <--- جديد: تحميل تفاصيل الموقع لكل عنصر إدخال
             ])
                 ->findOrFail($id);
             return $this->successResponse($note, 'تم جلب المذكرة بنجاح');
-        }catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             // استخدام notFoundResponse لرسائل 404
             return $this->notFoundResponse('المذكرة غير موجودة.');
-        }catch (\Exception $e) {
+        } catch (\Exception $e) {
             return $this->handleExceptionResponse($e);
         }
     }
@@ -291,7 +292,7 @@ class EntryNoteController extends Controller
             $folderNumber = $lastFolderNumber;
 
             if ($noteNumber % 50 == 1 && $noteNumber > 50) {
-                $folderNumber = floor($noteNumber / 50) + 1 ;
+                $folderNumber = floor($noteNumber / 50) + 1;
             }
         }
 

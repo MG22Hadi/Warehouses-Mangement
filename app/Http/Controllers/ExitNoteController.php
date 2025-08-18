@@ -35,6 +35,7 @@ class ExitNoteController extends Controller
             $notes = ExitNote::withCount('items')
                 ->with([
                     'warehouse',    //   علاقة المستودع
+                    'createdBy',
                     'user',         //   علاقة المستخدم
                     'items.product',  //   تحميل تفاصيل المنتج لكل عنصر إخراج
                     'items.location'  //   تحميل تفاصيل الموقع لكل عنصر إخراج
@@ -47,7 +48,7 @@ class ExitNoteController extends Controller
         }
     }
 
-/**
+    /**
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -151,7 +152,7 @@ class ExitNoteController extends Controller
             );
         }
     }
-**/
+     **/
 
     public function store(Request $request)
     {
@@ -182,7 +183,7 @@ class ExitNoteController extends Controller
 
                 $materialRequest = MaterialRequest::with([
                     'requestedBy',
-                    'items' => function($query) {
+                    'items' => function ($query) {
                         $query->where('quantity_approved', '>', 0);
                     }
                 ])->findOrFail($request->material_request_id);
@@ -342,7 +343,6 @@ class ExitNoteController extends Controller
                 ],
                 'تم إنشاء سند الخروج بنجاح. يرجى تحديد الغرف للمواد غير المستهلكة.'
             );
-
         } catch (\Throwable $e) {
             DB::rollBack();
             return $this->errorResponse(
@@ -364,16 +364,17 @@ class ExitNoteController extends Controller
             // - 'items.location': تفاصيل الموقع الذي خرج منه المنتج لكل عنصر.
             $note = ExitNote::with([
                 'warehouse',    // <--- إضافة: تحميل المستودع
+                'createdBy',
                 'user',         // <--- إضافة: تحميل المستخدم
                 'items.product',    // <--- جديد: تحميل تفاصيل المنتج لكل عنصر إخراج
                 'items.location'    // <--- جديد: تحميل تفاصيل الموقع لكل عنصر إخراج
             ])
                 ->findOrFail($id);
             return $this->successResponse($note, 'تم جلب المذكرة بنجاح');
-        }catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             // استخدام notFoundResponse لرسائل 404
             return $this->notFoundResponse('سند الإخراج غير موجود.');
-        }catch (\Exception $e) {
+        } catch (\Exception $e) {
             return $this->handleExceptionResponse($e);
         }
     }

@@ -10,6 +10,7 @@ class EntryNoteItem extends Model
         'entry_note_id',
         'product_id',
         'warehouse_id',
+        'location_id',
         'quantity',
         'notes'
     ];
