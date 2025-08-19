@@ -16,6 +16,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use App\Services\InventoryService;
 
 class ScrapNoteController extends Controller
 {
@@ -36,7 +37,9 @@ class ScrapNoteController extends Controller
         }
     }
 
-    public function store(Request $request)
+
+
+    public function store(Request $request, InventoryService $inventoryService)
     {
         $validator = Validator::make($request->all(), [
             'date' => 'required|date',
@@ -45,7 +48,7 @@ class ScrapNoteController extends Controller
             'materials' => 'required|array|min:1',
             'materials.*.product_id' => 'required|exists:products,id',
             'materials.*.quantity' => 'required|numeric|min:0.01',
-            'materials.*.location_id' => 'required|exists:locations,id', // <--- جديد: أمين المستودع يحدد الموقع هنا
+            'materials.*.location_id' => 'required|exists:locations,id',
             'materials.*.notes' => 'nullable|string|max:500',
         ], [
             'materials.*.location_id.required' => 'الموقع مطلوب لكل مادة تلف.',
@@ -58,38 +61,10 @@ class ScrapNoteController extends Controller
 
         try {
             $scrapNote = null;
+            $locationMessages = [];
 
-            DB::transaction(function () use ($request, &$scrapNote) {
-
-                // التحقق من توفر الكميات في المواقع المحددة قبل إنشاء أي شيء
-                foreach ($request->materials as $material) {
-                    $product = Product::find($material['product_id']);
-                    $location = Location::find($material['location_id']);
-
-                    if (!$product) {
-                        throw new \Exception("المنتج ID {$material['product_id']} غير موجود.");
-                    }
-                    if (!$location) {
-                        throw new \Exception("الموقع ID {$material['location_id']} غير موجود.");
-                    }
-
-                    // التحقق من مطابقة نوع الوحدة بين المنتج والموقع (ضروري)
-                    if ($product->unit !== $location->capacity_unit_type) {
-                        throw new \Exception("لا يمكن إتلاف المنتج (وحدته: " . $product->unit . ") من الموقع (وحدته: " . $location->capacity_unit_type . "). يجب أن تتطابق الوحدات.");
-                    }
-
-                    // التحقق من الكمية المتوفرة في ProductLocation للموقع المحدد
-                    $productLocation = ProductLocation::where('product_id', $material['product_id'])
-                        ->where('location_id', $material['location_id'])
-                        ->first();
-
-                    if (!$productLocation || $productLocation->quantity < $material['quantity']) {
-                        $availableInLocation = $productLocation ? $productLocation->quantity : 0;
-                        throw new \Exception("الكمية المطلوبة للإتلاف ({$material['quantity']}) للمنتج '{$product->name}' غير متوفرة في الموقع '{$location->name}' (المتاح: {$availableInLocation}).");
-                    }
-                }
-
-                // إنشاء مذكرة التلف بعد اجتياز جميع التحققات
+            DB::transaction(function () use ($request, &$scrapNote, &$locationMessages, $inventoryService) {
+                // إنشاء مذكرة التلف
                 $scrapNote = ScrapNote::create([
                     'created_by' => $request->user()->id,
                     'approved_by' => null,
@@ -99,26 +74,40 @@ class ScrapNoteController extends Controller
                     'notes' => $request->notes,
                 ]);
 
-                // إضافة المواد التالفة وتخزين location_id
+                // إضافة المواد التالفة + خصم الكميات عبر الـ Service
                 foreach ($request->materials as $material) {
-                    ScrappedMaterial::create([
+                    $productId = $material['product_id'];
+                    $locationId = $material['location_id'];
+                    $quantity = $material['quantity'];
+
+                    // 🟢 خصم الكمية عبر InventoryService
+                    $inventoryService->deductFromLocation($productId, $locationId, $quantity);
+
+                    // إنشاء سجل المادة
+                    $scrapMaterial = ScrappedMaterial::create([
                         'scrap_note_id' => $scrapNote->id,
-                        'product_id' => $material['product_id'],
-                        'quantity' => $material['quantity'],
-                        'location_id' => $material['location_id'], // <--- تخزين الـ location_id هنا
+                        'product_id' => $productId,
+                        'quantity' => $quantity,
+                        'location_id' => $locationId,
                         'notes' => $material['notes'] ?? null,
                     ]);
+
+                    // تجهيز رسالة
+                    $product = $scrapMaterial->product;
+                    $location = $scrapMaterial->location;
+                    $locationMessages[] = "تم إتلاف {$quantity} {$product->unit} من المنتج '{$product->name}' من الموقع '{$location->name}'.";
                 }
             });
 
-            $scrapNote = ScrapNote::find($scrapNote->id);
-
             return $this->successResponse(
-                $scrapNote,
+                [
+                    'scrap_note' => $scrapNote->load('materials'),
+                    'location_messages' => $locationMessages,
+                ],
                 'تم إنشاء مذكرة التلف بنجاح وسوف يتم مراجعتها للموافقة'
             );
 
-        } catch (\Throwable $e) { // استخدام Throwable لأخطاء أوسع
+        } catch (\Throwable $e) {
             DB::rollBack();
             return $this->errorResponse(
                 message: 'فشل في إنشاء مذكرة التلف: ' . $e->getMessage(),
@@ -127,7 +116,10 @@ class ScrapNoteController extends Controller
             );
         }
     }
-/**  ابروف قبل اللوكيشن
+
+
+
+    /**  ابروف قبل اللوكيشن
     public function approve($id)
     {
         try {

@@ -583,7 +583,6 @@ class InstallationReportController extends Controller
 
     public function store(Request $request)
     {
-        // 💡 Validation rules stay the same
         $validator = Validator::make($request->all(), [
             'location' => 'required|string|max:500',
             'type' => 'required|in:purchase,stock_usage',
@@ -610,13 +609,14 @@ class InstallationReportController extends Controller
         try {
             $installationReport = null;
             $user = Auth::user();
+            $locationMessages = []; // 🆕 لتجميع رسائل الخصم
 
-            DB::transaction(function () use ($request, &$installationReport, $user) {
+            DB::transaction(function () use ($request, &$installationReport, $user, &$locationMessages) {
                 // إنشاء تقرير التركيب
                 $installationReport = InstallationReport::create([
                     'created_by' => $user->id,
-                    'manager_id' => null, // 💡 الآن هو manager_id
-                    'status' => 'pending', // 🆕 إضافة الحالة الافتراضية
+                    'manager_id' => null,
+                    'status' => 'pending',
                     'serial_number' => $this->generateInstallationSerialNumber(),
                     'location' => $request->location,
                     'type' => $request->type,
@@ -630,16 +630,34 @@ class InstallationReportController extends Controller
                     $unitPrice = $material['unit_price'] ?? null;
                     $productName = $material['product_name'] ?? null;
                     $totalPrice = $unitPrice !== null ? $quantity * $unitPrice : null;
-                    $locationId = $material['location_id'] ?? null;
 
                     if ($request->type === 'stock_usage') {
                         if (!$productId) {
                             throw new \Exception("معرف المنتج مطلوب لنوع 'استخدام من المخزون'");
                         }
+
                         $product = Product::findOrFail($productId);
                         $productName = $product->name;
+                        $location = Location::findOrFail($material['location_id']);
+
+                        // 🔻 تحقق من وجود المنتج بالموقع وكفايته
+                        $productLocation = ProductLocation::where('product_id', $productId)
+                            ->where('location_id', $location->id)
+                            ->first();
+
+                        if (!$productLocation || $productLocation->quantity < $quantity) {
+                            throw new \Exception("الكمية المطلوبة ({$quantity}) من المنتج '{$product->name}' غير متوفرة في الموقع '{$location->name}'.");
+                        }
+
+                        // 🔻 خصم الكمية
+                        $productLocation->decrement('quantity', $quantity);
+                        $location->decrement('used_capacity_units', $quantity);
+
+                        // 🔻 سجل الرسالة
+                        $locationMessages[] = "تم خصم {$quantity} {$product->unit} من المنتج '{$product->name}' من الموقع '{$location->name}'.";
                     }
 
+                    // ⬇️ إنشاء المادة بدون تخزين location_id
                     InstallationMaterial::create([
                         'installation_report_id' => $installationReport->id,
                         'product_id' => $productId,
@@ -647,14 +665,16 @@ class InstallationReportController extends Controller
                         'quantity' => $quantity,
                         'unit_price' => $unitPrice,
                         'total_price' => $totalPrice,
-                        'location_id' => $locationId,
                         'notes' => $material['notes'] ?? null,
                     ]);
                 }
             });
 
             return $this->successResponse(
-                $installationReport->load('materials'),
+                [
+                    'report' => $installationReport->load('materials'),
+                    'location_messages' => $locationMessages,
+                ],
                 'تم إنشاء تقرير التركيب بنجاح. بانتظار موافقة المدير.'
             );
         } catch (\Exception $e) {
@@ -665,6 +685,8 @@ class InstallationReportController extends Controller
             );
         }
     }
+
+
 
     public function approve(Request $request, $id)
     {

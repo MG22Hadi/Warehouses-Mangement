@@ -46,12 +46,8 @@ class MaterialRequestController extends Controller
                 $user = $request->user()->load('department.manager');
 
                 if (!$user || !$user->department || !$user->department->manager) {
-                    return $this->errorResponse(
-                        'المستخدم أو المدير غير موجود',
-                        422,
-                        [],
-                        'USER_OR_MANAGER_NOT_FOUND'
-                    );
+                    // رجّع استثناء بدل response
+                    throw new \Exception('المستخدم أو المدير غير موجود');
                 }
 
                 $serialNumber = 'MR-' . date('YmdHis') . '-' . Str::random(4);
@@ -80,7 +76,12 @@ class MaterialRequestController extends Controller
                 ];
             });
 
-            return $this->successResponse($result['material_request'], $result['message'], 201);
+            // هنا بس تبني response
+            return $this->successResponse(
+                $result['material_request'],
+                $result['message'],
+                201
+            );
 
         } catch (\Exception $e) {
             return $this->errorResponse(
@@ -91,6 +92,7 @@ class MaterialRequestController extends Controller
             );
         }
     }
+
 
     public function pendingRequests()
     {
