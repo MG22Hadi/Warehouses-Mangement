@@ -45,4 +45,10 @@ class WarehouseKeeper extends Model
     {
         return $this->hasMany(ScrapNote::class, 'created_by');
     }
+
+    public function notifications()
+    {
+        return $this->morphMany(Notification::class, 'notifiable');
+    }
+
 }

@@ -36,4 +36,10 @@ class Manager extends Authenticatable
     {
         return $this->hasMany(ScrapNote::class, 'approved_by');
     }
+
+    public function notifications()
+    {
+        return $this->morphMany(Notification::class, 'notifiable');
+    }
+
 }
