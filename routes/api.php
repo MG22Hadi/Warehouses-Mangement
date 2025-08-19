@@ -11,6 +11,7 @@ use App\Http\Controllers\ExitNoteController;
 use App\Http\Controllers\InstallationReportController;
 use App\Http\Controllers\LocationController;
 use App\Http\Controllers\MaterialRequestController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\RoomController;
 use App\Http\Controllers\ScrapNoteController;
@@ -156,6 +157,13 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/unassigned-items', [LocationController::class, 'unassignedItems']);
     Route::post('/assign-location/{type}/{itemId}', [LocationController::class, 'assignLocation']);
+
+
+    //NOTIFICATIONS
+    Route::get('/allNotification-S',[NotificationController::class,'index']);
+    Route::get('/Notification/{id}',[NotificationController::class,'show']);
+    Route::get('/markAsRead-allNotification-S',[NotificationController::class,'markAllAsRead']);
+
 
 
 });
