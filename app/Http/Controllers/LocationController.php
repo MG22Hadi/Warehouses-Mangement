@@ -177,7 +177,7 @@ class LocationController extends Controller
             return $this->errorResponse('نوع المذكرة غير صالح', 400);
         }
 
-        // 2. التحقق من الكمية غير الموزعة
+        // 2. التحقق من الكمية المتاحة
         if ($item->unassigned_quantity < $request->quantity) {
             return $this->errorResponse(
                 'الكمية غير كافية للتوزيع',
@@ -186,13 +186,13 @@ class LocationController extends Controller
             );
         }
 
-        // 3. التحقق من السعة في الموقع
+        // 3. التحقق من السعة المتاحة في الموقع
         $location = Location::findOrFail($request->location_id);
         $availableCapacity = $location->capacity_units - $location->used_capacity_units;
 
         if ($availableCapacity < $request->quantity) {
             return $this->errorResponse(
-                'لا يوجد سعة كافية في هذا الموقع',
+                'لا توجد سعة كافية في هذا الموقع',
                 422,
                 ['available_capacity' => $availableCapacity]
             );
@@ -200,12 +200,22 @@ class LocationController extends Controller
 
         // 4. عملية التوزيع
         DB::transaction(function () use ($item, $request, $location) {
-            // توزيع الكمية على الموقع
-            ProductLocation::create([
-                'product_id' => $item->product_id,
-                'location_id' => $request->location_id,
-                'quantity' => $request->quantity,
-            ]);
+            // البحث إذا كان هناك سجل لنفس المنتج والموقع
+            $productLocation = ProductLocation::where('product_id', $item->product_id)
+                ->where('location_id', $request->location_id)
+                ->first();
+
+            if ($productLocation) {
+                // إذا موجود -> زيادة الكمية
+                $productLocation->increment('quantity', $request->quantity);
+            } else {
+                // إذا غير موجود -> إنشاء سجل جديد
+                ProductLocation::create([
+                    'product_id' => $item->product_id,
+                    'location_id' => $request->location_id,
+                    'quantity' => $request->quantity,
+                ]);
+            }
 
             // خصم من الكمية الغير موزعة
             $item->decrement('unassigned_quantity', $request->quantity);
@@ -216,8 +226,6 @@ class LocationController extends Controller
 
         return $this->successMessage('تم توزيع الكمية على الموقع بنجاح');
     }
-
-
 
     public function unassignedItems()
     {
