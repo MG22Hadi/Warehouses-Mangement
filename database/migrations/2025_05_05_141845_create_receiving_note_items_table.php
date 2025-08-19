@@ -16,6 +16,7 @@ return new class extends Migration
             $table->float('unit_price', 12, 2);
             $table->float('quantity', 10, 2);
             $table->float('total_price', 12, 2);
+            $table->float('unassigned_quantity', 10, 2)->default(0);
             $table->text('notes')->nullable();
             $table->timestamps();
         });

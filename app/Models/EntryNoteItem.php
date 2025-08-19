@@ -11,6 +11,7 @@ class EntryNoteItem extends Model
         'product_id',
         'warehouse_id',
         'quantity',
+        'unassigned_quantity',
         'notes'
     ];
 
@@ -24,8 +25,16 @@ class EntryNoteItem extends Model
         return $this->belongsTo(Product::class);
     }
 
+    public function warehouse()
+    {
+        return $this->belongsTo(Warehouse::class);
+    }
+
     public function location()
     {
-        return $this->belongsTo(Location::class, 'location_id');
+        return $this->belongsTo(Location::class);
     }
+
+
+
 }

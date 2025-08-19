@@ -142,5 +142,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // product Movement
 
+    Route::get('entryNote/unassigned', [EntryNoteController::class, 'getAllUnassignedItems']);
+
+    Route::get('/unassigned-items', [LocationController::class, 'unassignedItems']);
+    Route::post('/assign-location/{type}/{itemId}', [LocationController::class, 'assignLocation']);
+
 
 });

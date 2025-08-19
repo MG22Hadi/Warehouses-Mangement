@@ -2,11 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\EntryNoteItem;
 use App\Models\Location;
 use App\Models\Product;
 use App\Models\ProductLocation;
+use App\Models\ReceivingNoteItem;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 
@@ -156,6 +159,74 @@ class LocationController extends Controller
         });
 
         return $this->successResponse( $formattedData,'تم استرجاع مواقع المنتج بنجاح.');
+    }
+
+    public function assignLocation(Request $request, $type, $itemId)
+    {
+        $request->validate([
+            'location_id' => 'required|exists:locations,id',
+            'quantity' => 'required|numeric|min:0.01',
+        ]);
+
+        // 1. تحديد المصدر (Entry أو Receiving)
+        if ($type === 'entry') {
+            $item = EntryNoteItem::findOrFail($itemId);
+        } elseif ($type === 'receiving') {
+            $item = ReceivingNoteItem::findOrFail($itemId);
+        } else {
+            return $this->errorResponse('نوع المذكرة غير صالح', 400);
+        }
+
+        // 2. التحقق من الكمية غير الموزعة
+        if ($item->unassigned_quantity < $request->quantity) {
+            return $this->errorResponse(
+                'الكمية غير كافية للتوزيع',
+                422,
+                ['available' => $item->unassigned_quantity]
+            );
+        }
+
+        // 3. التحقق من السعة في الموقع
+        $location = Location::findOrFail($request->location_id);
+        $availableCapacity = $location->capacity_units - $location->used_capacity_units;
+
+        if ($availableCapacity < $request->quantity) {
+            return $this->errorResponse(
+                'لا يوجد سعة كافية في هذا الموقع',
+                422,
+                ['available_capacity' => $availableCapacity]
+            );
+        }
+
+        // 4. عملية التوزيع
+        DB::transaction(function () use ($item, $request, $location) {
+            // توزيع الكمية على الموقع
+            ProductLocation::create([
+                'product_id' => $item->product_id,
+                'location_id' => $request->location_id,
+                'quantity' => $request->quantity,
+            ]);
+
+            // خصم من الكمية الغير موزعة
+            $item->decrement('unassigned_quantity', $request->quantity);
+
+            // تحديث السعة المستخدمة
+            $location->increment('used_capacity_units', $request->quantity);
+        });
+
+        return $this->successMessage('تم توزيع الكمية على الموقع بنجاح');
+    }
+
+
+
+    public function unassignedItems()
+    {
+        $entryItems = EntryNoteItem::where('unassigned_quantity', '>', 0)->get();
+        $receivingItems = ReceivingNoteItem::where('unassigned_quantity', '>', 0)->get();
+
+        $all = $entryItems->merge($receivingItems);
+
+        return $this->successResponse($all, 'جميع المواد الغير موزعة');
     }
 
 }

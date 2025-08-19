@@ -71,7 +71,7 @@ class ReceivingNoteController extends Controller
                         ->first();
 
 
-                    // تحديث  سجل المخزون
+                    // تحديث سجل المخزون
 
                     DB::table('stocks')
                         ->where('product_id', $item['product_id'])
@@ -86,6 +86,7 @@ class ReceivingNoteController extends Controller
                         'warehouse_id' => $item['warehouse_id'],
                         'unit_price' => $item['unit_price'],
                         'quantity' => $item['quantity'],
+                        'unassigned_quantity' => $item['quantity'],
                         'total_price' => $totalPrice,
                         'notes' => $item['notes'] ?? null,
                     ]);

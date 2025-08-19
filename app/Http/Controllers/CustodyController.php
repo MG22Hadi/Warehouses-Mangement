@@ -69,7 +69,7 @@ class CustodyController extends Controller
     public function showAllForUser(Request $request)
     {
        $user=$request->user();
-       $custodies= Custody::with('items.product')
+       $custodies= Custody::with('items.product','room')
            ->where('user_id',$user->id)
            ->get();
 
@@ -102,7 +102,6 @@ class CustodyController extends Controller
         }
     }
 
-
     // نجيب كل العهد الموجودة في جدول العهد يعني لكل المستخدمين
     public function showAll(Request $request)
     {
@@ -117,7 +116,7 @@ class CustodyController extends Controller
         }
 
          * */
-        $allCustodies = Custody::with('user', 'items.product')->get();
+        $allCustodies = Custody::with('user', 'items.product','room')->get();
 
         // يمكنك أيضاً إضافة فحص هنا إذا كانت لا توجد أي عهدة على الإطلاق
         if ($allCustodies->isEmpty()) {
@@ -149,7 +148,8 @@ class CustodyController extends Controller
             $custodyItems = CustodyItem::with([
                 'product',
                 'custody.user',
-                'exitNote'
+                'exitNote',
+                'room'
             ])
                 ->where('room_id', $room->id) // استخدام $room->id
                 ->get();

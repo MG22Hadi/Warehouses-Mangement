@@ -12,6 +12,7 @@ class ReceivingNoteItem extends Model
         'warehouse_id',
         'unit_price',
         'quantity',
+        'unassigned_quantity',
         'total_price',
         'notes'
     ];
