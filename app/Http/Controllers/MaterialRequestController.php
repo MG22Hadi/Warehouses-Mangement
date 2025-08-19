@@ -3,28 +3,24 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
-use App\Models\ExitNote;
-use App\Models\ExitNoteItem;
 use App\Models\MaterialRequest;
 use App\Models\MaterialRequestItem;
-use App\Models\Product;
-use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use App\Traits\ApiResponse;
 
 class MaterialRequestController extends Controller
 {
-    //
     use ApiResponse;
 
     public function index()
     {
         try {
-            $r = MaterialRequest::all();
+            $requests = MaterialRequest::with(['manager', 'requestedBy', 'warehouseKeeper'])->get();
 
-            return $this->successResponse($r, 'تم جلب المذكرات مع عدد الأصناف بنجاح');
+            return $this->successResponse($requests, 'تم جلب المذكرات مع عدد الأصناف بنجاح');
         } catch (\Exception $e) {
             return $this->handleExceptionResponse($e);
         }
@@ -47,21 +43,24 @@ class MaterialRequestController extends Controller
 
         try {
             $result = DB::transaction(function () use ($request) {
-                // توليد الرقم التسلسلي
-                $serialNumber = 'MR-' . date('YmdHis') . '-' . Str::random(4);
+                $user = $request->user()->load('department.manager');
 
-                if (!DB::table('users')->where('id', $request->user()->id)->exists()) {
+                if (!$user || !$user->department || !$user->department->manager) {
                     return $this->errorResponse(
-                        message: 'المستخدم الحالي غير موجود في جدول users',
-                        code: 422,
-                        internalCode: 'USER_NOT_FOUND'
+                        'المستخدم أو المدير غير موجود',
+                        422,
+                        [],
+                        'USER_OR_MANAGER_NOT_FOUND'
                     );
                 }
 
+                $serialNumber = 'MR-' . date('YmdHis') . '-' . Str::random(4);
+
                 $materialRequest = MaterialRequest::create([
-                    'requested_by' => $request->user()->id,
+                    'requested_by' => $user->id,
+                    'manager_id' => $user->department->manager->id,
                     'warehouse_keeper_id' => $request->warehouse_keeper_id,
-                    'status' => 'pending', // الحالة الافتراضية
+                    'status' => 'pending',
                     'serial_number' => $serialNumber,
                     'date' => $request->date,
                 ]);
@@ -76,7 +75,7 @@ class MaterialRequestController extends Controller
                 }
 
                 return [
-                    'material_request' => $materialRequest->load('items'),
+                    'material_request' => $materialRequest->load(['items', 'manager']),
                     'message' => 'تم إنشاء طلب المواد بنجاح'
                 ];
             });
@@ -85,10 +84,10 @@ class MaterialRequestController extends Controller
 
         } catch (\Exception $e) {
             return $this->errorResponse(
-                message: 'فشل في إنشاء طلب المواد: ' . $e->getMessage(),
-                code: 500,
-                errors: ['trace' => $e->getTraceAsString()],
-                internalCode: 'MATERIAL_REQUEST_CREATION_FAILED'
+                'فشل في إنشاء طلب المواد: ' . $e->getMessage(),
+                500,
+                ['trace' => $e->getTraceAsString()],
+                'MATERIAL_REQUEST_CREATION_FAILED'
             );
         }
     }
@@ -96,66 +95,66 @@ class MaterialRequestController extends Controller
     public function pendingRequests()
     {
         try {
-            // جلب الطلبات مع العلاقات والعدد
-            $pendingRequests = MaterialRequest::withCount('items')
+            $pendingRequests = MaterialRequest::with(['manager', 'requestedBy', 'warehouseKeeper'])
+                ->withCount('items')
                 ->where('status', 'pending')
                 ->orderBy('created_at', 'desc')
                 ->get();
 
-            // تعديل هيكل البيانات للإرجاع
-            $formattedRequests = $pendingRequests->map(function ($request) {
+            $formatted = $pendingRequests->map(function ($r) {
                 return [
-                    'id' => $request->id,
-                    'serial_number' => $request->serial_number,
-                    'date' => $request->date,
-                    'requested_by' => $request->requestedBy->name,
-                    'warehouse_keeper' => $request->warehouseKeeper->name,
-                    'items_count' => $request->items_count,
-                    'created_at' => $request->created_at->format('Y-m-d H:i')
+                    'id' => $r->id,
+                    'serial_number' => $r->serial_number,
+                    'date' => $r->date,
+                    'requested_by' => $r->requestedBy->name,
+                    'warehouse_keeper' => $r->warehouseKeeper->name,
+                    'items_count' => $r->items_count,
+                    'created_at' => $r->created_at->format('Y-m-d H:i'),
+                    'manager' => [
+                        'id' => $r->manager->id,
+                        'name' => $r->manager->name,
+                        'email' => $r->manager->email ?? null
+                    ]
                 ];
             });
 
-            return $this->successResponse($formattedRequests, 'تم جلب الطلبات المعلقة بنجاح');
+            return $this->successResponse($formatted, 'تم جلب الطلبات المعلقة بنجاح');
 
         } catch (\Exception $e) {
             return $this->handleExceptionResponse($e);
         }
     }
 
-    /**
-     * الموافقة على طلب مواد
-     *
-     * @param int $id معرّف طلب المواد
-     * @param \Illuminate\Http\Request $request
-     *
-     */
+    public function approveRequest($id)
+    {
+        try {
+            $requestModel = MaterialRequest::with(['items', 'manager', 'requestedBy'])->find($id);
 
-    public function approveRequest($id){
-        try{
-            $materialRequest=MaterialRequest::findOrFail($id);
-                // التحقق من أن الطلب في حالة انتظار
-                if ($materialRequest->status != 'pending') {
-                    throw new \Exception('لا يمكن الموافقة على طلب غير معلق');
-                }
+            if (!$requestModel) {
+                return $this->errorResponse('الطلب غير موجود', 404, [], 'REQUEST_NOT_FOUND');
+            }
 
+            if ($requestModel->status != 'pending') {
+                return $this->errorResponse('لا يمكن الموافقة على طلب غير معلق', 422, [], 'INVALID_STATUS');
+            }
 
-                $materialRequest->update(['status' => 'approved']);
-                foreach ($materialRequest->items as $itemData) {
+            $requestModel->update(['status' => 'approved']);
 
+            foreach ($requestModel->items as $item) {
+                $item->update([
+                    'quantity_approved' => $item->quantity_requested,
+                    'approval_notes' => $item->notes ?? null
+                ]);
+            }
 
-                    $itemData->update([
-                        'quantity_approved' => $itemData['quantity_requested'],
-                        'approval_notes' => $itemData['notes'] ?? null
-                    ]);
-                }
+            return $this->successResponse($requestModel, 'تم الموافقة على الطلب', 201);
 
-            return $this->successResponse($materialRequest,'تم الموافقة على الطلب',201);
-        }catch (\Exception $e){
+        } catch (\Exception $e) {
             return $this->errorResponse(
-                message: 'فشل في إنشاء طلب المواد: ' . $e->getMessage(),
-                code: 500,
-                errors: ['trace' => $e->getTraceAsString()],
-                internalCode: 'MATERIAL_REQUEST_CREATION_FAILED'
+                'فشل في الموافقة على الطلب: ' . $e->getMessage(),
+                500,
+                ['trace' => $e->getTraceAsString()],
+                'APPROVAL_FAILED'
             );
         }
     }
@@ -164,7 +163,7 @@ class MaterialRequestController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'items' => 'required|array|min:1',
-            'items.*.id' => 'required|exists:material_request_items,id,material_request_id,'.$id,
+            'items.*.id' => 'required|exists:material_request_items,id,material_request_id,' . $id,
             'items.*.quantity_approved' => 'required|numeric|min:0',
             'notes' => 'nullable|string|max:500'
         ]);
@@ -174,28 +173,26 @@ class MaterialRequestController extends Controller
         }
 
         try {
-
             DB::transaction(function () use ($id, $request) {
+                $requestModel = MaterialRequest::with('items')->find($id);
 
-                $materialRequest = MaterialRequest::with('items')->findOrFail($id);
-
-                // التحقق من أن الطلب في حالة انتظار
-                if ($materialRequest->status != 'pending') {
-                    throw new \Exception('لا يمكن تعديل على طلب غير معلق');
+                if (!$requestModel) {
+                    throw new \Exception('الطلب غير موجود');
                 }
 
-                // تحديث حالة الطلب
-                $materialRequest->update([
+                if ($requestModel->status != 'pending') {
+                    throw new \Exception('لا يمكن تعديل طلب غير معلق');
+                }
+
+                $requestModel->update([
                     'status' => 'approved',
                     'approved_by' => null,
                     'approved_at' => now(),
                     'manager_notes' => $request->notes
                 ]);
 
-                // تحديث الكميات المعتمدة لكل مادة
                 foreach ($request->items as $itemData) {
-                    $item = $materialRequest->items->find($itemData['id']);
-
+                    $item = $requestModel->items->find($itemData['id']);
                     if ($itemData['quantity_approved'] > $item->quantity_requested) {
                         throw new \Exception("الكمية المعتمدة لا يمكن أن تكون أكبر من المطلوبة للمادة: {$item->product->name}");
                     }
@@ -205,63 +202,80 @@ class MaterialRequestController extends Controller
                         'approval_notes' => $itemData['notes'] ?? null
                     ]);
                 }
-
             });
 
             return $this->successResponse(
-                MaterialRequest::with(['items.product', 'approvedBy'])->find($id),
+                MaterialRequest::with(['items.product', 'approvedBy', 'manager', 'requestedBy'])->find($id),
                 'تم تعديل والموافقة على طلب المواد بنجاح'
             );
 
         } catch (\Exception $e) {
             return $this->errorResponse(
-                message: 'فشل في اعتماد الطلب: ' . $e->getMessage(),
-                code: 422,
-                internalCode: 'APPROVAL_FAILED'
+                'فشل في اعتماد الطلب: ' . $e->getMessage(),
+                422,
+                ['trace' => $e->getTraceAsString()],
+                'APPROVAL_FAILED'
             );
         }
     }
 
     public function rejectRequest($id)
     {
-        // تغيير status إلى 'rejected'
-        // مع إمكانية إضافة سبب الرفض
-
         try {
             DB::transaction(function () use ($id) {
-                $materialRequest = MaterialRequest::with(['requestedBy', 'items'])->findOrFail($id);
+                $requestModel = MaterialRequest::with(['requestedBy', 'items', 'manager'])->find($id);
 
-                // التحقق من أن الطلب قابل للرفض (في حالة pending)
-                if ($materialRequest->status != 'pending') {
+                if (!$requestModel) {
+                    throw new \Exception('الطلب غير موجود');
+                }
+
+                if ($requestModel->status != 'pending') {
                     throw new \Exception('لا يمكن رفض طلب غير معلق');
                 }
 
-                // تحديث حالة الطلب
-                $materialRequest->update([
-                    'status' => 'rejected',
-                ]);
-
+                $requestModel->update(['status' => 'rejected']);
             });
 
             return $this->successResponse(
-                MaterialRequest::find($id),
+                MaterialRequest::with(['manager', 'requestedBy', 'items.product'])->find($id),
                 'تم رفض طلب المواد بنجاح'
             );
 
-        }catch(\Exception $e){
+        } catch (\Exception $e) {
             return $this->errorResponse(
-                message: 'فشل في اعتماد الطلب: ' . $e->getMessage(),
-                code: 422,
-                internalCode: 'APPROVAL_FAILED'
+                'فشل في رفض الطلب: ' . $e->getMessage(),
+                422,
+                ['trace' => $e->getTraceAsString()],
+                'REJECTION_FAILED'
             );
         }
-
     }
-
 
     public function showRequest($id)
     {
-        // عرض تفاصيل طلب معين مع جميع items
+        try {
+            $requestModel = MaterialRequest::with([
+                'items.product',
+                'requestedBy',
+                'warehouseKeeper',
+                'manager',
+                'approvedBy'
+            ])->find($id);
+
+            if (!$requestModel) {
+                return $this->errorResponse('الطلب غير موجود', 404, [], 'REQUEST_NOT_FOUND');
+            }
+
+            return $this->successResponse($requestModel, 'تم جلب تفاصيل الطلب بنجاح');
+        } catch (\Exception $e) {
+            return $this->errorResponse(
+                'فشل في جلب تفاصيل الطلب: ' . $e->getMessage(),
+                422,
+                ['trace' => $e->getTraceAsString()],
+                'SHOW_REQUEST_FAILED'
+            );
+        }
     }
 
 }
+

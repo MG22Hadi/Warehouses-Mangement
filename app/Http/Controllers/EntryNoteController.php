@@ -25,11 +25,13 @@ class EntryNoteController extends Controller
         try {
             $notes = EntryNote::withCount('items') // هنا نستخدم withCount بدلاً of with
 
-            ->with(['warehouse',
-                'createdBy',
-                'user',
-                'items.product',  //  تحميل تفاصيل المنتج لكل عنصر إدخال
-            ])
+                ->with([
+                    'warehouse',
+                    'createdBy',
+                    'user',
+                    'items.product',  //  تحميل تفاصيل المنتج لكل عنصر إدخال
+                    'items.location'  //  تحميل تفاصيل الموقع لكل عنصر إدخال
+                ])
                 ->get();
 
             return $this->successResponse($notes, 'تم جلب المذكرات مع تفاصيل الأصناف والمواقع بنجاح');
@@ -48,6 +50,8 @@ class EntryNoteController extends Controller
             'items.*.warehouse_id' => 'required|exists:warehouses,id',
             'items.*.quantity' => 'required|numeric|min:0.01',
             'items.*.notes' => 'nullable|string',
+            'items.*.location_id' => 'required|exists:locations,id', //  معرف الموقع
+            'items.*.internal_shelf_number' => 'nullable|string|max:255', // الوصف الداخلي للرف
         ]);
 
         if ($validator->fails()) {
@@ -58,7 +62,6 @@ class EntryNoteController extends Controller
             $result = DB::transaction(function () use ($request) {
                 $serialNumber = $this->generateSerialNumber();
 
-                // إنشاء مذكرة إدخال
                 $entryNote = EntryNote::create([
                     'serial_number' => $serialNumber,
                     'date' => $request->date,
@@ -71,53 +74,63 @@ class EntryNoteController extends Controller
                         'entry_note_id' => $entryNote->id,
                         'product_id' => $item['product_id'],
                         'warehouse_id' => $item['warehouse_id'],
+                        'location_id' => $item['location_id'],
                         'quantity' => $item['quantity'],
-                        'unassigned_quantity' => $item['quantity'],
                         'notes' => $item['notes'] ?? null,
-                        'created_by' => $request->user()->id,
+                        'created_by' => $request->user()->id
                     ]);
 
-                    // تحديث المخزون (stocks)
-                    DB::table('stocks')->updateOrInsert(
-                        ['product_id' => $item['product_id'], 'warehouse_id' => $item['warehouse_id']],
-                        ['quantity' => DB::raw('quantity + ' . $item['quantity']), 'updated_at' => now()]
-                    );
-
-                    // إنشاء حركة المنتج
+                    // احصل على كمية المخزون بعد التحديث
                     $afterQuantity = DB::table('stocks')
                         ->where('product_id', $item['product_id'])
                         ->where('warehouse_id', $item['warehouse_id'])
                         ->value('quantity');
 
+                    // إنشاء حركة المنتج
                     ProductMovement::create([
                         'product_id' => $item['product_id'],
                         'warehouse_id' => $item['warehouse_id'],
                         'type' => 'entry',
                         'reference_serial' => $entryNote->serial_number,
-                        'prv_quantity' => $afterQuantity - $item['quantity'],
+                        'prv_quantity' => $afterQuantity - $item['quantity'], // قبل التحديث
                         'note_quantity' => $item['quantity'],
-                        'after_quantity' => $afterQuantity,
+                        'after_quantity' => $afterQuantity, // بعد التحديث
                         'date' => $request->date,
                         'reference_type' => 'EntryNote',
                         'reference_id' => $entryNote->id,
                         'user_id' => $request->user()->id,
                         'notes' => $item['notes'] ?? 'إدخال من سند رقم: ' . $serialNumber,
                     ]);
+
+                    //////////////////////
+
+                    // 9. إنشاء حركة المنتج (يبقى كما هو، مع تحديث prv_quantity و after_quantity)
+                    // يجب جلب قيمة المخزون الحالية قبل Increment لتكون prv_quantity صحيحة
+//                    $prevStockQuantity = DB::table('stocks')
+//                        ->where('product_id', $item['product_id'])
+//                        ->where('warehouse_id', $item['warehouse_id'])
+//                        ->value('quantity'); // جلب الكمية بعد التحديث
+
+
                 }
 
                 return [
-                    'entry_note' => $entryNote->load('items'),
-                    'message' => 'تم إنشاء مذكرة الإدخال بنجاح، يرجى إسناد المواقع لاحقاً'
+                    'entry_note' => $entryNote,
+                    'message' => 'تم إنشاء المذكرة بنجاح'
                 ];
             });
 
             return $this->successResponse($result['entry_note'], $result['message'], 201);
 
         } catch (\Exception $e) {
-            return $this->handleExceptionResponse($e, 'فشل في إنشاء مذكرة الدخول');
+            return $this->errorResponse(
+                message: 'فشل في إنشاء مذكرة الدخول: ' . $e->getMessage(),
+                code: 500,
+                internalCode: 'ENTRY_NOTE_CREATION_FAILED'
+            );
         }
     }
-    
+
 
     // إظهار مذكرة محددة
     public function show($id)
@@ -130,9 +143,9 @@ class EntryNoteController extends Controller
             // - 'items.location': تفاصيل الموقع الذي دخل إليه المنتج لكل عنصر.
             $note = EntryNote::with([
                 'warehouse',
-                'createdBy',
                 'user',
                 'items.product',    // <--- جديد: تحميل تفاصيل المنتج لكل عنصر إدخال
+                'items.location'    // <--- جديد: تحميل تفاصيل الموقع لكل عنصر إدخال
             ])
                 ->findOrFail($id);
             return $this->successResponse($note, 'تم جلب المذكرة بنجاح');
