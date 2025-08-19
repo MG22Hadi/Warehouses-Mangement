@@ -50,8 +50,6 @@ class EntryNoteController extends Controller
             'items.*.warehouse_id' => 'required|exists:warehouses,id',
             'items.*.quantity' => 'required|numeric|min:0.01',
             'items.*.notes' => 'nullable|string',
-            'items.*.location_id' => 'required|exists:locations,id', //  معرف الموقع
-            'items.*.internal_shelf_number' => 'nullable|string|max:255', // الوصف الداخلي للرف
         ]);
 
         if ($validator->fails()) {
@@ -62,6 +60,7 @@ class EntryNoteController extends Controller
             $result = DB::transaction(function () use ($request) {
                 $serialNumber = $this->generateSerialNumber();
 
+                // إنشاء مذكرة إدخال
                 $entryNote = EntryNote::create([
                     'serial_number' => $serialNumber,
                     'date' => $request->date,
@@ -74,60 +73,50 @@ class EntryNoteController extends Controller
                         'entry_note_id' => $entryNote->id,
                         'product_id' => $item['product_id'],
                         'warehouse_id' => $item['warehouse_id'],
-                        'location_id' => $item['location_id'],
                         'quantity' => $item['quantity'],
+                        'unassigned_quantity' => $item['quantity'],
                         'notes' => $item['notes'] ?? null,
-                        'created_by' => $request->user()->id
+                        'created_by' => $request->user()->id,
                     ]);
 
-                    // احصل على كمية المخزون بعد التحديث
+                    // تحديث المخزون (stocks)
+                    DB::table('stocks')->updateOrInsert(
+                        ['product_id' => $item['product_id'], 'warehouse_id' => $item['warehouse_id']],
+                        ['quantity' => DB::raw('quantity + ' . $item['quantity']), 'updated_at' => now()]
+                    );
+
+                    // إنشاء حركة المنتج
                     $afterQuantity = DB::table('stocks')
                         ->where('product_id', $item['product_id'])
                         ->where('warehouse_id', $item['warehouse_id'])
                         ->value('quantity');
 
-                    // إنشاء حركة المنتج
                     ProductMovement::create([
                         'product_id' => $item['product_id'],
                         'warehouse_id' => $item['warehouse_id'],
                         'type' => 'entry',
                         'reference_serial' => $entryNote->serial_number,
-                        'prv_quantity' => $afterQuantity - $item['quantity'], // قبل التحديث
+                        'prv_quantity' => $afterQuantity - $item['quantity'],
                         'note_quantity' => $item['quantity'],
-                        'after_quantity' => $afterQuantity, // بعد التحديث
+                        'after_quantity' => $afterQuantity,
                         'date' => $request->date,
                         'reference_type' => 'EntryNote',
                         'reference_id' => $entryNote->id,
                         'user_id' => $request->user()->id,
                         'notes' => $item['notes'] ?? 'إدخال من سند رقم: ' . $serialNumber,
                     ]);
-
-                    //////////////////////
-
-                    // 9. إنشاء حركة المنتج (يبقى كما هو، مع تحديث prv_quantity و after_quantity)
-                    // يجب جلب قيمة المخزون الحالية قبل Increment لتكون prv_quantity صحيحة
-//                    $prevStockQuantity = DB::table('stocks')
-//                        ->where('product_id', $item['product_id'])
-//                        ->where('warehouse_id', $item['warehouse_id'])
-//                        ->value('quantity'); // جلب الكمية بعد التحديث
-
-
                 }
 
                 return [
-                    'entry_note' => $entryNote,
-                    'message' => 'تم إنشاء المذكرة بنجاح'
+                    'entry_note' => $entryNote->load('items'),
+                    'message' => 'تم إنشاء مذكرة الإدخال بنجاح، يرجى إسناد المواقع لاحقاً'
                 ];
             });
 
             return $this->successResponse($result['entry_note'], $result['message'], 201);
 
         } catch (\Exception $e) {
-            return $this->errorResponse(
-                message: 'فشل في إنشاء مذكرة الدخول: ' . $e->getMessage(),
-                code: 500,
-                internalCode: 'ENTRY_NOTE_CREATION_FAILED'
-            );
+            return $this->handleExceptionResponse($e, 'فشل في إنشاء مذكرة الدخول');
         }
     }
 
