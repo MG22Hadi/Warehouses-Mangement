@@ -39,7 +39,7 @@ class ScrapNoteController extends Controller
 
 
 
-    public function store(Request $request, InventoryService $inventoryService)
+    public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
             'date' => 'required|date',
@@ -48,11 +48,7 @@ class ScrapNoteController extends Controller
             'materials' => 'required|array|min:1',
             'materials.*.product_id' => 'required|exists:products,id',
             'materials.*.quantity' => 'required|numeric|min:0.01',
-            'materials.*.location_id' => 'required|exists:locations,id',
             'materials.*.notes' => 'nullable|string|max:500',
-        ], [
-            'materials.*.location_id.required' => 'الموقع مطلوب لكل مادة تلف.',
-            'materials.*.location_id.exists' => 'الموقع المحدد غير موجود.',
         ]);
 
         if ($validator->fails()) {
@@ -63,7 +59,7 @@ class ScrapNoteController extends Controller
             $scrapNote = null;
             $locationMessages = [];
 
-            DB::transaction(function () use ($request, &$scrapNote, &$locationMessages, $inventoryService) {
+            DB::transaction(function () use ($request, &$scrapNote, &$locationMessages) {
                 // إنشاء مذكرة التلف
                 $scrapNote = ScrapNote::create([
                     'created_by' => $request->user()->id,
@@ -74,28 +70,20 @@ class ScrapNoteController extends Controller
                     'notes' => $request->notes,
                 ]);
 
-                // إضافة المواد التالفة + خصم الكميات عبر الـ Service
+                // إضافة المواد التالفة فقط
                 foreach ($request->materials as $material) {
-                    $productId = $material['product_id'];
-                    $locationId = $material['location_id'];
+                    $product = Product::findOrFail($material['product_id']);
                     $quantity = $material['quantity'];
 
-                    // 🟢 خصم الكمية عبر InventoryService
-                    $inventoryService->deductFromLocation($productId, $locationId, $quantity);
-
-                    // إنشاء سجل المادة
-                    $scrapMaterial = ScrappedMaterial::create([
+                    ScrappedMaterial::create([
                         'scrap_note_id' => $scrapNote->id,
-                        'product_id' => $productId,
+                        'product_id' => $product->id,
                         'quantity' => $quantity,
-                        'location_id' => $locationId,
                         'notes' => $material['notes'] ?? null,
                     ]);
 
-                    // تجهيز رسالة
-                    $product = $scrapMaterial->product;
-                    $location = $scrapMaterial->location;
-                    $locationMessages[] = "تم إتلاف {$quantity} {$product->unit} من المنتج '{$product->name}' من الموقع '{$location->name}'.";
+                    // فقط رسالة توضيحية (بدون تخزين location_id)
+                    $locationMessages[] = "تم إتلاف {$quantity} {$product->unit} من المنتج '{$product->name}'.";
                 }
             });
 
@@ -116,6 +104,7 @@ class ScrapNoteController extends Controller
             );
         }
     }
+
 
 
 

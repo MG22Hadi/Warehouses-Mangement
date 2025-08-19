@@ -594,11 +594,10 @@ class InstallationReportController extends Controller
             'materials.*.unit_price' => 'required_if:type,purchase|nullable|numeric|min:0',
             'materials.*.product_name' => 'required_if:type,purchase|string|max:255',
             'materials.*.product_id' => 'required_if:type,stock_usage|nullable|exists:products,id',
-            'materials.*.location_id' => 'required_if:type,stock_usage|nullable|exists:locations,id',
+            // 🚫 أزلنا location_id
         ], [
             'materials.*.product_name.required_if' => 'اسم المنتج مطلوب لنوع الشراء',
             'materials.*.product_id.required_if' => 'معرف المنتج مطلوب لنوع الاستخدام من المخزون',
-            'materials.*.location_id.required_if' => 'معرف الموقع مطلوب لنوع الاستخدام من المخزون',
             'materials.*.unit_price.required_if' => 'سعر الوحدة مطلوب لنوع الشراء',
         ]);
 
@@ -609,10 +608,10 @@ class InstallationReportController extends Controller
         try {
             $installationReport = null;
             $user = Auth::user();
-            $locationMessages = []; // 🆕 لتجميع رسائل الخصم
+            $locationMessages = [];
 
             DB::transaction(function () use ($request, &$installationReport, $user, &$locationMessages) {
-                // إنشاء تقرير التركيب
+                // إنشاء التقرير
                 $installationReport = InstallationReport::create([
                     'created_by' => $user->id,
                     'manager_id' => null,
@@ -638,26 +637,27 @@ class InstallationReportController extends Controller
 
                         $product = Product::findOrFail($productId);
                         $productName = $product->name;
-                        $location = Location::findOrFail($material['location_id']);
 
-                        // 🔻 تحقق من وجود المنتج بالموقع وكفايته
+                        // 🔎 ابحث عن أول موقع متوفر فيه الكمية
                         $productLocation = ProductLocation::where('product_id', $productId)
-                            ->where('location_id', $location->id)
+                            ->where('quantity', '>=', $quantity)
                             ->first();
 
-                        if (!$productLocation || $productLocation->quantity < $quantity) {
-                            throw new \Exception("الكمية المطلوبة ({$quantity}) من المنتج '{$product->name}' غير متوفرة في الموقع '{$location->name}'.");
+                        if (!$productLocation) {
+                            throw new \Exception("الكمية المطلوبة ({$quantity}) من المنتج '{$product->name}' غير متوفرة في أي موقع.");
                         }
 
-                        // 🔻 خصم الكمية
+                        $location = $productLocation->location;
+
+                        // خصم الكمية
                         $productLocation->decrement('quantity', $quantity);
                         $location->decrement('used_capacity_units', $quantity);
 
-                        // 🔻 سجل الرسالة
+                        // رسالة توضح من أي موقع تم الخصم
                         $locationMessages[] = "تم خصم {$quantity} {$product->unit} من المنتج '{$product->name}' من الموقع '{$location->name}'.";
                     }
 
-                    // ⬇️ إنشاء المادة بدون تخزين location_id
+                    // إنشاء المادة بدون location_id
                     InstallationMaterial::create([
                         'installation_report_id' => $installationReport->id,
                         'product_id' => $productId,
@@ -685,6 +685,7 @@ class InstallationReportController extends Controller
             );
         }
     }
+
 
 
 
