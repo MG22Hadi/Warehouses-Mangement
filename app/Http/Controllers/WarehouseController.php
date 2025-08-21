@@ -62,7 +62,7 @@ class WarehouseController extends Controller
             $warehouse->update($validated);
 
             DB::commit();
-            return $this->successResponse($warehouse, 'تم تعديل المستودع بنجاح',201);
+            return $this->successResponse($warehouse, 'تم تعديل المستودع بنجاح', 201);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return $this->validationErrorResponse($e->validator);
         } catch (\Throwable $e) {
@@ -86,11 +86,9 @@ class WarehouseController extends Controller
             DB::commit();
 
             return $this->successResponse(null, 'تم حذف المستودع والمخزون المرتبط به بنجاح');
-
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             DB::rollBack();
             return $this->errorResponse('المستودع غير موجود', 404);
-
         } catch (\Exception $e) {
             DB::rollBack();
             return $this->errorResponse('فشل في حذف المستودع: ' . $e->getMessage(), 500);
@@ -99,15 +97,15 @@ class WarehouseController extends Controller
 
     public function index()
     {
-        $warehouses=Warehouse::all();
-        return $this->successResponse($warehouses,'هذه هي كل المستودعات يا عمي ',201);
+        $warehouses = Warehouse::all();
+        return $this->successResponse($warehouses, 'هذه هي كل المستودعات يا عمي ', 201);
     }
 
     public function show($id)
     {
         try {
             // استخدم with() لجلب علاقة المنتجات 'products'
-            $warehouse = Warehouse::with('products')->find($id);
+            $warehouse = Warehouse::with(['stock.product'])->find($id);
 
             if (!$warehouse) {
                 return $this->notFoundResponse('المستودع غير موجود');
