@@ -12,10 +12,19 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use App\Traits\ApiResponse;
+use App\Services\NotificationService;
+
 
 class MaterialRequestController extends Controller
 {
     use ApiResponse;
+    protected $notificationService;
+
+    public function __construct(NotificationService $notificationService)
+    {
+        $this->notificationService = $notificationService;
+    }
+
 
     public function index()
     {
@@ -141,14 +150,13 @@ class MaterialRequestController extends Controller
                 }
 
                 // ✨ إنشاء إشعار للمدير
-                Notification::create([
-                    'notifiable_id'   => $manager->id,
-                    'notifiable_type' => Manager::class,
-                    'title'           => 'طلب مواد جديد',
-                    'message'         => "الموظف {$user->name} أنشأ طلب مواد جديد برقم {$materialRequest->serial_number}",
-                    'type'            => 'request_created',
-                    'related_id'      => $materialRequest->id,
-                ]);
+                $this->notificationService->notify(
+                    $manager,
+                    'طلب مواد جديد',
+                    "الموظف {$user->name} أنشأ طلب مواد جديد برقم {$materialRequest->serial_number}",
+                    'request_created',
+                    $materialRequest->id
+                );
 
                 return [
                     'material_request' => $materialRequest->load(['items', 'manager']),
@@ -156,7 +164,6 @@ class MaterialRequestController extends Controller
                 ];
             });
 
-            // هنا بس تبني response
             return $this->successResponse(
                 $result['material_request'],
                 $result['message'],
@@ -220,8 +227,10 @@ class MaterialRequestController extends Controller
                 return $this->errorResponse('لا يمكن الموافقة على طلب غير معلق', 422, [], 'INVALID_STATUS');
             }
 
+            // تحديث حالة الطلب
             $requestModel->update(['status' => 'approved']);
 
+            // تحديث العناصر
             foreach ($requestModel->items as $item) {
                 $item->update([
                     'quantity_approved' => $item->quantity_requested,
@@ -229,8 +238,16 @@ class MaterialRequestController extends Controller
                 ]);
             }
 
-            return $this->successResponse($requestModel, 'تم الموافقة على الطلب', 201);
+// ✨ إرسال إشعار لليوزر/////////////////
+            $this->notificationService->notify(
+                $requestModel->requestedBy, // اليوزر يلي قدّم الطلب
+                'تمت الموافقة على طلبك',
+                'وافق المدير على طلبك، يرجى التوجه إلى أمين المستودع لاستلام المواد.',
+                'request_approved',
+                $requestModel->id
+            );
 
+            return $this->successResponse($requestModel, 'تمت الموافقة على الطلب وإرسال إشعار للموظف', 201);
         } catch (\Exception $e) {
             return $this->errorResponse(
                 'فشل في الموافقة على الطلب: ' . $e->getMessage(),
@@ -255,8 +272,8 @@ class MaterialRequestController extends Controller
         }
 
         try {
-            DB::transaction(function () use ($id, $request) {
-                $requestModel = MaterialRequest::with('items')->find($id);
+            $requestModel = DB::transaction(function () use ($id, $request) {
+                $requestModel = MaterialRequest::with(['items', 'requestedBy'])->find($id);
 
                 if (!$requestModel) {
                     throw new \Exception('الطلب غير موجود');
@@ -267,28 +284,50 @@ class MaterialRequestController extends Controller
                 }
 
                 $requestModel->update([
-                    'status' => 'approved',
-                    'approved_by' => null,
-                    'approved_at' => now(),
+                    'status'        => 'approved',
+                    'approved_by'   => auth()->id(), // المدير الحالي
+                    'approved_at'   => now(),
                     'manager_notes' => $request->notes
                 ]);
 
-                foreach ($request->items as $itemData) {
-                    $item = $requestModel->items->find($itemData['id']);
-                    if ($itemData['quantity_approved'] > $item->quantity_requested) {
-                        throw new \Exception("الكمية المعتمدة لا يمكن أن تكون أكبر من المطلوبة للمادة: {$item->product->name}");
-                    }
+                // ✅ نمرّ على كل المواد ونحدثها
+                foreach ($requestModel->items as $item) {
+                    $itemData = collect($request->items)->firstWhere('id', $item->id);
 
-                    $item->update([
-                        'quantity_approved' => $itemData['quantity_approved'],
-                        'approval_notes' => $itemData['notes'] ?? null
-                    ]);
+                    if ($itemData) {
+                        // تعديل من المدير
+                        if ($itemData['quantity_approved'] > $item->quantity_requested) {
+                            throw new \Exception("الكمية المعتمدة لا يمكن أن تكون أكبر من المطلوبة للمادة: {$item->product->name}");
+                        }
+
+                        $item->update([
+                            'quantity_approved' => $itemData['quantity_approved'],
+                            'approval_notes'    => $itemData['notes'] ?? null
+                        ]);
+                    } else {
+                        // ما في تعديل → نوافق بالكمية الأصلية المطلوبة
+                        $item->update([
+                            'quantity_approved' => $item->quantity_requested,
+                            'approval_notes'    => null
+                        ]);
+                    }
                 }
+
+                return $requestModel;
             });
+
+            // ✨ إرسال إشعار للموظف
+            $this->notificationService->notify(
+                $requestModel->requestedBy,
+                'تم تعديل طلبك',
+                'وافق المدير على طلبك لكن عدّل بعض الكميات. يرجى التوجه إلى أمين المستودع لاستلام المواد.',
+                'request_edited',
+                $requestModel->id
+            );
 
             return $this->successResponse(
                 MaterialRequest::with(['items.product', 'approvedBy', 'manager', 'requestedBy'])->find($id),
-                'تم تعديل والموافقة على طلب المواد بنجاح'
+                'تم تعديل والموافقة على طلب المواد بنجاح وارسال إشعار للموظف'
             );
 
         } catch (\Exception $e) {
@@ -301,10 +340,11 @@ class MaterialRequestController extends Controller
         }
     }
 
+
     public function rejectRequest($id)
     {
         try {
-            DB::transaction(function () use ($id) {
+            $requestModel = DB::transaction(function () use ($id) {
                 $requestModel = MaterialRequest::with(['requestedBy', 'items', 'manager'])->find($id);
 
                 if (!$requestModel) {
@@ -315,12 +355,27 @@ class MaterialRequestController extends Controller
                     throw new \Exception('لا يمكن رفض طلب غير معلق');
                 }
 
-                $requestModel->update(['status' => 'rejected']);
+                $requestModel->update([
+                    'status'      => 'rejected',
+                    'approved_by' => auth()->id(), // المدير الحالي
+                    'approved_at' => now(),
+                ]);
+
+                return $requestModel;
             });
+
+            // ✨ إرسال إشعار للموظف
+            $this->notificationService->notify(
+                $requestModel->requestedBy,
+                'تم رفض طلبك',
+                'عذراً، لقد تم رفض طلب المواد الخاص بك من قبل المدير.',
+                'request_rejected',
+                $requestModel->id
+            );
 
             return $this->successResponse(
                 MaterialRequest::with(['manager', 'requestedBy', 'items.product'])->find($id),
-                'تم رفض طلب المواد بنجاح'
+                ' تم رفض طلب المواد بنجاح و إرسال إشعار للموظف'
             );
 
         } catch (\Exception $e) {
