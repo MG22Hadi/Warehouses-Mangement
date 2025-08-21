@@ -30,7 +30,6 @@ class EntryNoteController extends Controller
                     'createdBy',
                     'user',
                     'items.product',  //  تحميل تفاصيل المنتج لكل عنصر إدخال
-                    'items.location'  //  تحميل تفاصيل الموقع لكل عنصر إدخال
                 ])
                 ->get();
 
@@ -133,8 +132,8 @@ class EntryNoteController extends Controller
             $note = EntryNote::with([
                 'warehouse',
                 'user',
+                'createdBy',
                 'items.product',    // <--- جديد: تحميل تفاصيل المنتج لكل عنصر إدخال
-                'items.location'    // <--- جديد: تحميل تفاصيل الموقع لكل عنصر إدخال
             ])
                 ->findOrFail($id);
             return $this->successResponse($note, 'تم جلب المذكرة بنجاح');
