@@ -107,7 +107,7 @@ class WarehouseController extends Controller
     {
         try {
             // استخدم with() لجلب علاقة المنتجات 'products'
-            $warehouse = Warehouse::with('products')->find($id);
+            $warehouse = Warehouse::with('stock')->find($id);
 
             if (!$warehouse) {
                 return $this->notFoundResponse('المستودع غير موجود');
