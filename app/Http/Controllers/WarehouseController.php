@@ -106,7 +106,8 @@ class WarehouseController extends Controller
     public function show($id)
     {
         try {
-            $warehouse = Warehouse::find($id);
+            // استخدم with() لجلب علاقة المنتجات 'products'
+            $warehouse = Warehouse::with('products')->find($id);
 
             if (!$warehouse) {
                 return $this->notFoundResponse('المستودع غير موجود');
@@ -114,7 +115,7 @@ class WarehouseController extends Controller
 
             return $this->successResponse(
                 ['warehouse' => $warehouse],
-                'تم جلب بيانات المستودع بنجاح',
+                'تم جلب بيانات المستودع مع المنتجات بنجاح',
                 200
             );
         } catch (\Exception $e) {
