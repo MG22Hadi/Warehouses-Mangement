@@ -26,8 +26,11 @@ class InstallationReportController extends Controller
             // فلترة حسب النوع (مع إضافة خيار all)
             $type = $request->query('type', 'all'); // all, stock_usage, purchase
 
-            $query = InstallationReport::with(['materials', 'createdBy', 'approvedBy'])
-                ->orderBy('date', 'desc');
+            $query = InstallationReport::with([
+                'materials.product',   // المنتج المرتبط بالمادة
+                'createdBy',           // المستخدم الذي أنشأ التقرير
+                'approvedBy'           // المدير الذي اعتمد التقرير
+            ])->orderBy('date', 'desc');
 
             // تطبيق الفلتر إذا لم يكن all
             if ($type !== 'all' && in_array($type, ['stock_usage', 'purchase'])) {
@@ -52,35 +55,11 @@ class InstallationReportController extends Controller
                 }
             }
 
-            $reports = $query->paginate(15);
-
-            // تنسيق البيانات للإرسال
-            $formattedReports = $reports->map(function ($report) {
-                return [
-                    'id' => $report->id,
-                    'serial_number' => $report->serial_number,
-                    'type' => $report->type,
-                    'type_name' => $this->getTypeName($report->type),
-                    'date' => $report->date,
-                    'location' => $report->location,
-                    'status' => $report->approved_by ? 'معتمدة' : 'قيد الانتظار',
-                    'created_by' => $report->createdBy->name ?? 'غير معروف',
-                    'approved_by' => $report->approvedBy->name ?? 'لم يتم الاعتماد بعد',
-                    'materials_count' => $report->materials->count(),
-                    'total_quantity' => $report->materials->sum('quantity'),
-                    'total_cost' => $report->materials->sum('total_price'),
-                    'created_at' => $report->created_at->format('Y-m-d H:i'),
-                ];
-            });
+            // جلب كل النتائج دفعة واحدة
+            $reports = $query->get();
 
             return $this->successResponse([
-                'reports' => $formattedReports,
-                'pagination' => [
-                    'total' => $reports->total(),
-                    'current_page' => $reports->currentPage(),
-                    'per_page' => $reports->perPage(),
-                    'last_page' => $reports->lastPage(),
-                ],
+                'reports' => $reports,
                 'filters' => [
                     'current_type' => $type,
                     'available_types' => [
@@ -124,11 +103,6 @@ class InstallationReportController extends Controller
             'materials.*.unit_price' => 'required_if:type,purchase|nullable|numeric|min:0',
             'materials.*.product_name' => 'required_if:type,purchase|string|max:255',
             'materials.*.product_id' => 'required_if:type,stock_usage|nullable|exists:products,id',
-            // 🚫 أزلنا location_id
-        ], [
-            'materials.*.product_name.required_if' => 'اسم المنتج مطلوب لنوع الشراء',
-            'materials.*.product_id.required_if' => 'معرف المنتج مطلوب لنوع الاستخدام من المخزون',
-            'materials.*.unit_price.required_if' => 'سعر الوحدة مطلوب لنوع الشراء',
         ]);
 
         if ($validator->fails()) {
@@ -138,9 +112,8 @@ class InstallationReportController extends Controller
         try {
             $installationReport = null;
             $user = Auth::user();
-            $locationMessages = [];
 
-            DB::transaction(function () use ($request, &$installationReport, $user, &$locationMessages) {
+            DB::transaction(function () use ($request, &$installationReport, $user) {
                 // إنشاء التقرير
                 $installationReport = InstallationReport::create([
                     'created_by' => $user->id,
@@ -160,34 +133,11 @@ class InstallationReportController extends Controller
                     $productName = $material['product_name'] ?? null;
                     $totalPrice = $unitPrice !== null ? $quantity * $unitPrice : null;
 
-                    if ($request->type === 'stock_usage') {
-                        if (!$productId) {
-                            throw new \Exception("معرف المنتج مطلوب لنوع 'استخدام من المخزون'");
-                        }
-
+                    if ($request->type === 'stock_usage' && $productId) {
                         $product = Product::findOrFail($productId);
                         $productName = $product->name;
-
-                        // 🔎 ابحث عن أول موقع متوفر فيه الكمية
-                        $productLocation = ProductLocation::where('product_id', $productId)
-                            ->where('quantity', '>=', $quantity)
-                            ->first();
-
-                        if (!$productLocation) {
-                            throw new \Exception("الكمية المطلوبة ({$quantity}) من المنتج '{$product->name}' غير متوفرة في أي موقع.");
-                        }
-
-                        $location = $productLocation->location;
-
-                        // خصم الكمية
-                        $productLocation->decrement('quantity', $quantity);
-                        $location->decrement('used_capacity_units', $quantity);
-
-                        // رسالة توضح من أي موقع تم الخصم
-                        $locationMessages[] = "تم خصم {$quantity} {$product->unit} من المنتج '{$product->name}' من الموقع '{$location->name}'.";
                     }
 
-                    // إنشاء المادة بدون location_id
                     InstallationMaterial::create([
                         'installation_report_id' => $installationReport->id,
                         'product_id' => $productId,
@@ -201,17 +151,14 @@ class InstallationReportController extends Controller
             });
 
             return $this->successResponse(
-                [
-                    'report' => $installationReport->load('materials'),
-                    'location_messages' => $locationMessages,
-                ],
+                $installationReport->load('materials'),
                 'تم إنشاء تقرير التركيب بنجاح. بانتظار موافقة المدير.'
             );
         } catch (\Exception $e) {
             return $this->errorResponse(
-                message: 'فشل في إنشاء تقرير التركيب: ' . $e->getMessage(),
-                code: 422,
-                internalCode: 'INSTALLATION_REPORT_CREATION_FAILED'
+                'فشل في إنشاء تقرير التركيب: ' . $e->getMessage(),
+                422,
+                'INSTALLATION_REPORT_CREATION_FAILED'
             );
         }
     }
@@ -221,56 +168,44 @@ class InstallationReportController extends Controller
         try {
             $report = InstallationReport::with('materials')->findOrFail($id);
             $user = Auth::user();
+            $locationMessages = [];
 
-            // 1. التحقق من حالة التقرير (يجب أن يكون قيد الانتظار)
             if ($report->status !== 'pending') {
-                return $this->errorResponse(
-                    'لا يمكن الموافقة على تقرير ليس قيد الانتظار.',
-                    400,
-                    'REPORT_NOT_PENDING'
-                );
+                return $this->errorResponse('لا يمكن الموافقة على تقرير ليس قيد الانتظار.', 400, 'REPORT_NOT_PENDING');
             }
-            // 2. التحقق من صلاحيات المستخدم (يجب أن يكون مدير)
-            // 💡 أضف هنا التحقق من دور المستخدم، مثلا:
-            // if (!$user->hasRole('manager')) { ... }
 
-            DB::transaction(function () use ($report, $user) {
-                // 3. خصم الكميات وتسجيل الحركات فقط إذا كان نوع التقرير 'stock_usage'
+            DB::transaction(function () use ($report, $user, &$locationMessages) {
                 if ($report->type === 'stock_usage') {
                     foreach ($report->materials as $material) {
-                        // 💡 هنا يجب أن يكون لديك عمود location_id في جدول installation_materials
+                        $product = Product::findOrFail($material->product_id);
+
+                        // ابحث عن موقع فيه الكمية المطلوبة
                         $productLocation = ProductLocation::where('product_id', $material->product_id)
-                            ->where('location_id', $material->location_id) // 💡 تأكد من وجود هذا العمود
+                            ->where('quantity', '>=', $material->quantity)
                             ->first();
 
-                        if (!$productLocation || $productLocation->quantity < $material->quantity) {
-                            $availableQuantity = $productLocation ? $productLocation->quantity : 0;
-                            throw new \Exception("الكمية غير متوفرة في الموقع المحدد للمنتج: {$material->product->name} (المتاح: {$availableQuantity})");
+                        if (!$productLocation) {
+                            throw new \Exception("الكمية المطلوبة ({$material->quantity}) من المنتج '{$product->name}' غير متوفرة في أي موقع.");
                         }
 
+                        $location = $productLocation->location;
+
+                        // خصم الكمية
                         $productLocation->decrement('quantity', $material->quantity);
-                        if ($productLocation->quantity <= 0) {
-                            $productLocation->delete();
-                        }
-
-                        $location = Location::find($material->location_id);
                         $location->decrement('used_capacity_units', $material->quantity);
 
-                        $stock = Stock::firstOrCreate(
-                            ['product_id' => $material->product_id, 'warehouse_id' => $location->warehouse_id],
-                            ['quantity' => 0]
-                        );
-                        $prvQuantity = $stock->quantity;
-                        $stock->decrement('quantity', $material->quantity);
+                        // رسالة للمستخدم
+                        $locationMessages[] = "تم خصم {$material->quantity} {$product->unit} من المنتج '{$product->name}' من الموقع '{$location->name}'.";
 
+                        // حفظ حركة المنتج (اختياري)
                         ProductMovement::create([
                             'product_id' => $material->product_id,
                             'warehouse_id' => $location->warehouse_id,
                             'type' => 'install',
                             'reference_serial' => $report->serial_number,
-                            'prv_quantity' => $prvQuantity,
+                            'prv_quantity' => $productLocation->quantity + $material->quantity,
                             'note_quantity' => $material->quantity,
-                            'after_quantity' => $stock->quantity,
+                            'after_quantity' => $productLocation->quantity,
                             'date' => now(),
                             'reference_type' => 'InstallationReport',
                             'reference_id' => $report->id,
@@ -280,7 +215,7 @@ class InstallationReportController extends Controller
                     }
                 }
 
-                // 4. تحديث حالة التقرير إلى "معتمد" وتعيين المدير
+                // تغيير حالة التقرير
                 $report->update([
                     'status' => 'approved',
                     'manager_id' => $user->id,
@@ -288,23 +223,26 @@ class InstallationReportController extends Controller
             });
 
             return $this->successResponse(
-                $report->load('materials'),
+                [
+                    'report' => $report->load('materials'),
+                    'location_messages' => $locationMessages,
+                ],
                 'تمت الموافقة على تقرير التركيب بنجاح.'
             );
-
         } catch (\Exception $e) {
             return $this->errorResponse(
-                message: 'فشل في الموافقة على تقرير التركيب: ' . $e->getMessage(),
-                code: 422,
-                internalCode: 'INSTALLATION_REPORT_APPROVAL_FAILED'
+                'فشل في الموافقة على تقرير التركيب: ' . $e->getMessage(),
+                422,
+                'INSTALLATION_REPORT_APPROVAL_FAILED'
             );
         }
     }
 
+
     public function reject(Request $request, $id)
     {
         try {
-            $report = InstallationReport::findOrFail($id);
+            $report = InstallationReport::with('materials')->findOrFail($id);
             $user = Auth::user();
 
             // 1. التحقق من حالة التقرير (يجب أن يكون قيد الانتظار)

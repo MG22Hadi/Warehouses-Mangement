@@ -28,9 +28,8 @@ class InstallationReport extends Model
 
     public function approvedBy()
     {
-        return $this->belongsTo(Manager::class, 'approved_by');
+        return $this->belongsTo(User::class, 'manager_id');
     }
-
     public function materials()
     {
         return $this->hasMany(InstallationMaterial::class);
