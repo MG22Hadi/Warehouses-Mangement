@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    public function up()//
+    public function up()
     {
         Schema::create('warehouse_keepers', function (Blueprint $table) {
             $table->id();
@@ -14,7 +14,10 @@ return new class extends Migration
             $table->string('email')->nullable()->unique();
             $table->string('phone')->nullable()->unique();
             $table->string('password');
-            $table->rememberToken(); // مهم في نظام المصادقة
+            $table->string('gender')->nullable();
+            $table->text('address')->nullable();
+            $table->date('birth_date')->nullable();
+            $table->rememberToken();
             $table->timestamps();
         });
     }

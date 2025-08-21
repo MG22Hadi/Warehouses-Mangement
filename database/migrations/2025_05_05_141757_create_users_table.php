@@ -16,6 +16,11 @@ return new class extends Migration
             $table->string('phone')->nullable()->unique();
             $table->string('password');
             $table->string('job_title');
+            $table->string('gender')->nullable();
+            $table->text('address')->nullable();
+            $table->date('birth_date')->nullable();
+            $table->string('facebook_url')->nullable();
+            $table->string('instagram_url')->nullable();
             $table->rememberToken();
             $table->timestamps();
         });

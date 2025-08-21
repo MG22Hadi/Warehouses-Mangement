@@ -92,7 +92,12 @@ class UserController extends Controller
                 'phone' => 'sometimes|string|unique:users,phone,'.$id,
                 'password' => 'sometimes|string|min:8',
                 'job_title' => 'sometimes|string',
-                'department_id' => 'sometimes|exists:departments,id'
+                'department_id' => 'sometimes|exists:departments,id',
+                'gender'       => 'sometimes|nullable|string',
+                'address'      => 'sometimes|nullable|string',
+                'birth_date'   => 'sometimes|nullable|date',
+                'facebook_url'  => 'sometimes|nullable|url',
+                'instagram_url' => 'sometimes|nullable|url',
             ]);
 
             if ($validator->fails()) {

@@ -17,6 +17,7 @@ use App\Http\Controllers\RoomController;
 use App\Http\Controllers\ScrapNoteController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WarehouseController;
+use App\Http\Controllers\WarehouseKeeperController;
 use App\Models\EntryNote;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -34,11 +35,7 @@ Route::get('/products/{id}/details', [ProductController::class, 'details']);
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
 
-
-
-
     //ENTRY NOTE
-
     Route::get('/allEntryNote',[EntryNoteController::class,'index']);
     Route::get('/EntryNote/{id}/details',[EntryNoteController::class,'show']);
     Route::post('/entryNote',[EntryNoteController::class,'store']);
@@ -173,6 +170,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::apiResource('users', UserController::class);
         Route::get('me', [UserController::class, 'show'])->middleware('auth:sanctum');
     });
+
+
+    Route::put('/warehouse-keepers/{id}', [WarehouseKeeperController::class, 'update']);
+    Route::put('/warehouse-keepers/update-password/{id}', [WarehouseKeeperController::class, 'updatePassword']);
+    Route::get('/warehouse-keeper/me', [WarehouseKeeperController::class, 'show']);
 
 
 });
