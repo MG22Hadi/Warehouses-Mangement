@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 
 class UserController extends Controller
@@ -57,13 +58,13 @@ class UserController extends Controller
     /**
      * عرض مستخدم معين
      */
-    public function show($id)
+    public function show()
     {
         try {
-            $user = User::find($id);
+            $user = Auth::user(); // ✅ المستخدم بناءً على التوكن الحالي
 
             if (!$user) {
-                return $this->notFoundResponse('المستخدم غير موجود');
+                return $this->notFoundResponse('المستخدم غير موجود أو التوكن غير صالح');
             }
 
             return $this->successResponse($user, 'تم جلب المستخدم بنجاح');
@@ -71,6 +72,7 @@ class UserController extends Controller
             return $this->handleExceptionResponse($e);
         }
     }
+
 
     /**
      * تحديث مستخدم

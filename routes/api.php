@@ -15,6 +15,7 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\RoomController;
 use App\Http\Controllers\ScrapNoteController;
+use App\Http\Controllers\UserController;
 use App\Http\Controllers\WarehouseController;
 use App\Models\EntryNote;
 use Illuminate\Http\Request;
@@ -166,6 +167,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/Notification/{id}',[NotificationController::class,'show']);
     Route::get('/markAsRead-allNotification-S',[NotificationController::class,'markAllAsRead']);
 
+    Route::prefix('v1')->group(function () {
+        Route::apiResource('users', UserController::class);
+        Route::get('me', [UserController::class, 'show'])->middleware('auth:sanctum');
+    });
 
 
 });
