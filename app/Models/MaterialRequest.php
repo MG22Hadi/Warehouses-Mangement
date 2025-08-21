@@ -24,15 +24,6 @@ class MaterialRequest extends Model
         return $this->belongsTo(User::class, 'requested_by');
     }
 
-    public function approvedBy()
-    {
-        return $this->belongsTo(Manager::class, 'approved_by');
-    }
-
-//    public function manager()
-//    {
-//        return $this->belongsTo(Manager::class, 'manager_id');
-//    }
 
     public function warehouseKeeper()
     {

@@ -37,71 +37,7 @@ class MaterialRequestController extends Controller
         }
     }
 
-//    public function store(Request $request)
-//    {
-//        $validator = Validator::make($request->all(), [
-//            'date' => 'required|date',
-//            'warehouse_keeper_id' => 'required|exists:warehouse_keepers,id',
-//            'items' => 'required|array|min:1',
-//            'items.*.product_id' => 'required|exists:products,id',
-//            'items.*.quantity_requested' => 'required|numeric|min:0.01',
-//            'items.*.notes' => 'nullable|string',
-//        ]);
-//
-//        if ($validator->fails()) {
-//            return $this->validationErrorResponse($validator);
-//        }
-//
-//        try {
-//            $result = DB::transaction(function () use ($request) {
-//                $user = $request->user()->load('department.manager');
-//
-//                if (!$user || !$user->department || !$user->department->manager) {
-//                    return $this->errorResponse(
-//                        'المستخدم أو المدير غير موجود',
-//                        422,
-//                        [],
-//                        'USER_OR_MANAGER_NOT_FOUND'
-//                    );
-//                }
-//
-//                $serialNumber = 'MR-' . date('YmdHis') . '-' . Str::random(4);
-//
-//                $materialRequest = MaterialRequest::create([
-//                    'requested_by' => $user->id,
-//                    'manager_id' => $user->department->manager->id,
-//                    'warehouse_keeper_id' => $request->warehouse_keeper_id,
-//                    'status' => 'pending',
-//                    'serial_number' => $serialNumber,
-//                    'date' => $request->date,
-//                ]);
-//
-//                foreach ($request->items as $item) {
-//                    MaterialRequestItem::create([
-//                        'material_request_id' => $materialRequest->id,
-//                        'product_id' => $item['product_id'],
-//                        'quantity_requested' => $item['quantity_requested'],
-//                        'notes' => $item['notes'] ?? null,
-//                    ]);
-//                }
-//
-//                return [
-//                    'material_request' => $materialRequest->load(['items', 'manager']),
-//                    'message' => 'تم إنشاء طلب المواد بنجاح'
-//                ];
-//            });
-//
-//            return $this->successResponse($result['material_request'], $result['message'], 201);
-//
-//        } catch (\Exception $e) {
-//            return $this->errorResponse(
-//                'فشل في إنشاء طلب المواد: ' . $e->getMessage(),
-//                500,
-//                ['trace' => $e->getTraceAsString()],
-//                'MATERIAL_REQUEST_CREATION_FAILED'
-//            );
-//        }
-//    }
+
 
     public function store(Request $request)
     {
@@ -396,7 +332,6 @@ class MaterialRequestController extends Controller
                 'requestedBy',
                 'warehouseKeeper',
                 'manager',
-                'approvedBy'
             ])->find($id);
 
             if (!$requestModel) {
@@ -413,6 +348,23 @@ class MaterialRequestController extends Controller
             );
         }
     }
+
+    public function userRequests($userId)
+    {
+        try {
+            $requests = MaterialRequest::with(['manager', 'requestedBy', 'warehouseKeeper'])
+                ->where('requested_by', $userId) // فلترة حسب المستخدم
+                ->get();
+
+            return $this->successResponse(
+                $requests,
+                'تم جلب الطلبات الخاصة بالمستخدم بنجاح'
+            );
+        } catch (\Exception $e) {
+            return $this->handleExceptionResponse($e);
+        }
+    }
+
 
 }
 

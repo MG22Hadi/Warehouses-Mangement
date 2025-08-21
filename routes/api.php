@@ -81,6 +81,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/materialRequests/{id}/edit', [MaterialRequestController::class, 'editRequest']);
     Route::put('/materialRequests/{id}/reject', [MaterialRequestController::class, 'rejectRequest']);
     Route::put('/materialRequests/{id}/approve', [MaterialRequestController::class, 'approveRequest']);
+    Route::get('/material-requests/user/{userId}', [MaterialRequestController::class, 'userRequests']);
+
 
     //CUSTODY
     // إنشاء عهدة بشكل يدوي
