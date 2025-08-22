@@ -20,6 +20,11 @@ class AuthController extends Controller
             'type'     => ['required', Rule::in(['user', 'manager', 'warehouseKeeper'])],
             'email'    => 'nullable|email|unique:users|unique:managers|unique:warehouse_keepers',
             'phone'    => 'nullable|string|unique:users|unique:managers|unique:warehouse_keepers|regex:/^09\d{8}$/',
+            // ⚠️ أصبح department_id اختيارياً للمدير وأمين المستودع والمستخدم العادي
+            'department_id' => 'nullable|exists:departments,id',
+            // ⚠️ أصبح warehouse_id اختيارياً لأمين المستودع
+            'warehouse_id'  => 'nullable|exists:warehouses,id',
+            'job_title'     => 'nullable|string|max:255',
         ]);
 
         if ($validator->fails()) {
@@ -43,10 +48,20 @@ class AuthController extends Controller
             'email'    => $request->email,
             'phone'    => $request->phone,
             'password' => Hash::make($request->password),
-            'department_id'=> $request->department_id,
-            'job_title'    => $request->job_title,
         ];
 
+        // تحديد البيانات المطلوبة بناءً على النوع
+        if ($request->type === 'manager') {
+            $data['department_id'] = $request->department_id ?? null;
+        } elseif ($request->type === 'user') {
+            $data['department_id'] = $request->department_id;
+        } elseif ($request->type === 'warehouseKeeper') {
+            $data['warehouse_id'] = $request->warehouse_id ?? null;
+        }
+
+        if ($request->has('job_title')) {
+            $data['job_title'] = $request->job_title;
+        }
 
         try {
             $user = $modelClass::create($data);

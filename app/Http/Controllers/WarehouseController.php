@@ -28,6 +28,8 @@ class WarehouseController extends Controller
             $warehouse = Warehouse::create([
                 'name' => $validated['name'],
                 'location' => $validated['location'],
+                'type' => $validated['type'] ?? null,
+                //'department_id' => $validated['department_id'] ?? null,
             ]);
 
             DB::commit();
@@ -97,15 +99,15 @@ class WarehouseController extends Controller
 
     public function index()
     {
-        $warehouses = Warehouse::all();
-        return $this->successResponse($warehouses, 'هذه هي كل المستودعات يا عمي ', 201);
+        $warehouses=Warehouse::all();
+        return $this->successResponse($warehouses,'هذه هي كل المستودعات يا عمي ',201);
     }
 
     public function show($id)
     {
         try {
+            $warehouse = Warehouse::with('department',['stock.product'])->find($id);
             // استخدم with() لجلب علاقة المنتجات 'products'
-            $warehouse = Warehouse::with(['stock.product'])->find($id);
 
             if (!$warehouse) {
                 return $this->notFoundResponse('المستودع غير موجود');

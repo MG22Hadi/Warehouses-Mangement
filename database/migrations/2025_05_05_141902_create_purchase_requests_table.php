@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('purchase_requests', function (Blueprint $table) {
             $table->id();
             $table->foreignId('created_by')->constrained('warehouse_keepers');
-            $table->foreignId('manager_id')->constrained('managers');
+            $table->foreignId('manager_id')->nullable()->constrained('managers');
             $table->foreignId('supplier_id')->constrained('suppliers');
             $table->string('serial_number')->unique();
             $table->enum('status', ['pending', 'approved', 'rejected'])->default('pending');

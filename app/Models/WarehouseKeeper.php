@@ -20,6 +20,10 @@ class WarehouseKeeper extends Model
         'instagram_url',
     ];
 
+    public function warehouse()
+    {
+        return $this->belongsTo(Warehouse::class);
+    }
 
     public function materialRequests()
     {

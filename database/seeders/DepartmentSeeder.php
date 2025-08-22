@@ -14,6 +14,12 @@ class DepartmentSeeder extends Seeder
             ['name' => 'HR',          'created_at' => now(), 'updated_at' => now()],
             ['name' => 'Warehouse',   'created_at' => now(), 'updated_at' => now()],
             ['name' => 'Finance',     'created_at' => now(), 'updated_at' => now()],
+            ['name' => 'IT2',          'created_at' => now(), 'updated_at' => now()],
+            ['name' => 'HR2',          'created_at' => now(), 'updated_at' => now()],
+            ['name' => 'Warehouse2',   'created_at' => now(), 'updated_at' => now()],
+            ['name' => 'Finance2',     'created_at' => now(), 'updated_at' => now()],
+            ['name' => 'HR3',          'created_at' => now(), 'updated_at' => now()],
+            ['name' => 'Warehouse3',   'created_at' => now(), 'updated_at' => now()],
         ]);
     }
 }

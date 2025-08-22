@@ -15,9 +15,7 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\RoomController;
 use App\Http\Controllers\ScrapNoteController;
-use App\Http\Controllers\UserController;
 use App\Http\Controllers\WarehouseController;
-use App\Http\Controllers\WarehouseKeeperController;
 use App\Models\EntryNote;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -36,6 +34,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
 
     //ENTRY NOTE
+
     Route::get('/allEntryNote',[EntryNoteController::class,'index']);
     Route::get('/EntryNote/{id}/details',[EntryNoteController::class,'show']);
     Route::post('/entryNote',[EntryNoteController::class,'store']);
@@ -57,6 +56,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/products/store', [ProductController::class, 'store']);
     Route::put('products/update/{id}', [ProductController::class, 'update']);
     Route::delete('products/delete/{id}', [ProductController::class, 'destroy']);
+    Route::get('/products',[ProductController::class,'index']);
     Route::get('products/show/{id}', [ProductController::class, 'show']);
 
     //  LOCATIONS
@@ -175,6 +175,21 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/warehouse-keepers/{id}', [WarehouseKeeperController::class, 'update']);
     Route::put('/warehouse-keepers/update-password/{id}', [WarehouseKeeperController::class, 'updatePassword']);
     Route::get('/warehouse-keeper/me', [WarehouseKeeperController::class, 'show']);
+
+    //SUPPLIERS
+    Route::get('/suppliers', [SupplierController::class, 'index']);
+    Route::post('/suppliers/store', [SupplierController::class, 'store']);
+    Route::get('supplier/show/{id}', [SupplierController::class, 'show']);
+    Route::put('supplier/update/{id}', [SupplierController::class, 'update']);
+
+    //PurchaseRequests
+    Route::get('/purchase-requests', [PurchaseRequestController::class, 'index']);
+    Route::post('/purchase-requests/store', [PurchaseRequestController::class, 'store']);
+    Route::get('/purchase-requests/show/{id}', [PurchaseRequestController::class, 'show']);
+    Route::put('/purchase-requests/update/{id}', [PurchaseRequestController::class, 'update']);
+    Route::put('/purchase-requests/{id}/approve', [PurchaseRequestController::class, 'approve']);
+    Route::put('/purchase-requests/{id}/reject', [PurchaseRequestController::class, 'reject']);
+    Route::get('/purchase-requests/my-requests', [PurchaseRequestController::class, 'myRequests']);
 
 
 });
