@@ -10,6 +10,7 @@ return new class extends Migration
     {
         Schema::create('receiving_notes', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('purchase_requests_id')->constrained('purchase_requests');
             $table->foreignId('supplier_id')->constrained('suppliers');
             $table->foreignId('created_by')->constrained('warehouse_keepers');
             $table->string('serial_number')->unique();

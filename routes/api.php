@@ -14,6 +14,7 @@ use App\Http\Controllers\MaterialRequestController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\PurchaseRequestController;
+use App\Http\Controllers\ReceivingNoteController;
 use App\Http\Controllers\RoomController;
 use App\Http\Controllers\ScrapNoteController;
 use App\Http\Controllers\SupplierController;
@@ -195,5 +196,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/purchase-requests/{id}/reject', [PurchaseRequestController::class, 'reject']);
     Route::get('/purchase-requests/my-requests', [PurchaseRequestController::class, 'myRequests']);
 
+    //ReceivingNote
+    Route::get('/allReceivingNote', [ReceivingNoteController::class, 'index']);
+    Route::get('/receivingNote/{id}', [ReceivingNoteController::class, 'show']);
+    Route::post('/receivingNote/store', [ReceivingNoteController::class, 'store']);
 
 });
