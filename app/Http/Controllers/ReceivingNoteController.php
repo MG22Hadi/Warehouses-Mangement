@@ -11,8 +11,10 @@ use App\Models\ReceivingNoteItem;
 use App\Traits\ApiResponse;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use const http\Client\Curl\AUTH_ANY;
 
 class ReceivingNoteController extends Controller
 {
@@ -60,7 +62,7 @@ class ReceivingNoteController extends Controller
         try {
             $result = DB::transaction(function () use ($request) {
                 // جلب هوية المستخدم بالطريقة الصحيحة وتخزينها
-                $keeperId = auth()->id();
+                $keeperId = Auth::guard('warehouse-keeper-api')->id();
                 $serialNumber = $this->generateSerialNumber();
 
                 $receivingNote = ReceivingNote::create([

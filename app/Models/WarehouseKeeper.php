@@ -2,24 +2,14 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
-class WarehouseKeeper extends Model
+class WarehouseKeeper extends Authenticatable
 {
-    use HasApiTokens;
-    protected $fillable = [
-        'name',
-        'email',
-        'phone',
-        'password',
-        'warehouse_id',
-        'gender',
-        'address',
-        'birth_date',
-        'facebook_url',
-        'instagram_url',
-    ];
+    use HasApiTokens, HasFactory, Notifiable;
 
     public function warehouse()
     {

@@ -16,11 +16,11 @@ class DatabaseSeeder extends Seeder
         // User::factory(10)->create();
 
         //$this->call(DepartmentSeeder::class);
-        $this->call(WarehouseSeeder::class);
+//        $this->call(WarehouseSeeder::class);
 
         //$this->call(ProductsSeeder::class);
 
-        $this->call(BuildingsSeeder::class);
+//        $this->call(BuildingsSeeder::class);
         //$this->call(RoomSeeder::class);
         $this->call(LocationSeeder::class);
     }

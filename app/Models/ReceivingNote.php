@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class ReceivingNote extends Model
 {
     protected $fillable = [
+        'purchase_requests_id',
         'supplier_id',
         'created_by',
         'serial_number',
