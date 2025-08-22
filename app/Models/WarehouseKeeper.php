@@ -13,6 +13,7 @@ class WarehouseKeeper extends Model
         'email',
         'phone',
         'password',
+        'warehouse_id',
         'gender',
         'address',
         'birth_date',

@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\Stock;
 use App\Models\Warehouse;
+use App\Models\WarehouseKeeper;
 use Illuminate\Http\Request;
 use App\Traits\ApiResponse;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 
@@ -15,34 +17,37 @@ class WarehouseController extends Controller
 
     public function store(Request $request)
     {
-        DB::beginTransaction();
-
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'location' => 'required|string|max:255',
             'type' => 'nullable|string',
         ]);
 
-
         try {
-            $warehouse = Warehouse::create([
-                'name' => $validated['name'],
-                'location' => $validated['location'],
-                'type' => $validated['type'] ?? null,
-                //'department_id' => $validated['department_id'] ?? null,
-            ]);
+            // ⚠️ 1. الحصول على أمين المستودع الموثق مباشرة من التوكن
+            $authenticatedWarehouseKeeper = Auth::user();
 
-            DB::commit();
+            $warehouse = DB::transaction(function () use ($validated, $authenticatedWarehouseKeeper) {
+                // إنشاء المستودع
+                $newWarehouse = Warehouse::create([
+                    'name' => $validated['name'],
+                    'location' => $validated['location'],
+                    'type' => $validated['type'] ?? null,
+                ]);
+
+                // ⚠️ 2. ربط المستودع الجديد بأمين المستودع مباشرة
+                $authenticatedWarehouseKeeper->update(['warehouse_id' => $newWarehouse->id]);
+
+                return $newWarehouse;
+            });
 
             return $this->successResponse(
                 ['warehouse' => $warehouse],
-                'تم إنشاء المستودع بنجاح',
+                'تم إنشاء المستودع بنجاح وربطه بأمين المستودع.',
                 201
             );
-        } catch (\Exception $e) {
-            DB::rollBack();
-
-            return $this->errorResponse('فشل في إنشاء المستودع : ' . $e->getMessage(), 500);
+        } catch (\Throwable $e) {
+            return $this->handleExceptionResponse($e, 'فشل في إنشاء المستودع');
         }
     }
 
@@ -106,7 +111,7 @@ class WarehouseController extends Controller
     public function show($id)
     {
         try {
-            $warehouse = Warehouse::with('department',['stock.product'])->find($id);
+            $warehouse = Warehouse::with(['department', 'stock.product'])->find($id);
             // استخدم with() لجلب علاقة المنتجات 'products'
 
             if (!$warehouse) {

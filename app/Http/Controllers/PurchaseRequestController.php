@@ -57,7 +57,7 @@ class PurchaseRequestController extends Controller
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'created_by' => 'required|exists:warehouse_keepers,id',
+            'created_by' => 'required|exists:warehouse_keepers,id', // ⚠️ يجب أن يكون ID أمين المستودع موجوداً
             'supplier_id' => 'required|exists:suppliers,id',
             'request_date' => 'required|date',
             'notes' => 'nullable|string',
@@ -70,11 +70,16 @@ class PurchaseRequestController extends Controller
             return $this->validationErrorResponse($validator);
         }
 
-        // الخطوة الجديدة: البحث عن مدير القسم تلقائياً
+        // ⚠️ الخطوة الحاسمة: جلب المدير عبر العلاقات
         try {
+            // نجد أمين المستودع بناءً على ID المرسل في الطلب
             $warehouseKeeper = WarehouseKeeper::findOrFail($request->created_by);
+
+            // نصل إلى المدير عبر سلسلة العلاقات: أمين المستودع -> المستودع -> القسم -> المدير
             $managerId = $warehouseKeeper->warehouse->department->manager_id;
-        } catch (\Exception $e) {
+
+        } catch (Exception $e) {
+            // هذا الخطأ سيحدث إذا كانت إحدى العلاقات غير موجودة (مثل warehouse_id في جدول warehouse_keepers فارغ)
             return $this->errorResponse(
                 'فشل في تحديد مدير القسم المرتبط بأمين المستودع: ' . $e->getMessage(),
                 404,
@@ -87,7 +92,7 @@ class PurchaseRequestController extends Controller
             DB::transaction(function () use ($request, $managerId, &$purchaseRequest) {
                 $purchaseRequest = PurchaseRequest::create([
                     'created_by' => $request->created_by,
-                    'manager_id' => $managerId, // تم تعيينه هنا!
+                    'manager_id' => $managerId,
                     'supplier_id' => $request->supplier_id,
                     'serial_number' => $this->generateSerialNumber(),
                     'status' => 'pending',
@@ -110,13 +115,16 @@ class PurchaseRequestController extends Controller
             // 🔔 إشعار للمدير المحدد
             $manager = $purchaseRequest->manager;
             if ($manager) {
-                $this->notificationService->notify(
-                    $manager,
-                    'طلب شراء جديد',
-                    'يوجد طلب شراء جديد بانتظار المراجعة (رقم: ' . $purchaseRequest->serial_number . ')',
-                    'purchase_request',
-                    $purchaseRequest->id
-                );
+                // تأكد من أن notificationService معرف ومتاح
+                if (isset($this->notificationService)) {
+                    $this->notificationService->notify(
+                        $manager,
+                        'طلب شراء جديد',
+                        'يوجد طلب شراء جديد بانتظار المراجعة (رقم: ' . $purchaseRequest->serial_number . ')',
+                        'purchase_request',
+                        $purchaseRequest->id
+                    );
+                }
             }
 
             return $this->successResponse(
@@ -124,7 +132,7 @@ class PurchaseRequestController extends Controller
                 'تم إنشاء طلب الشراء بنجاح وإرسال إشعار للمدير .',
                 201
             );
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return $this->errorResponse(
                 'فشل في إنشاء طلب الشراء: ' . $e->getMessage(),
                 500,
