@@ -14,7 +14,8 @@ return new class extends Migration
             $table->string('email')->nullable()->unique();
             $table->string('phone')->nullable()->unique();
             $table->string('password');
-            $table->rememberToken(); // مهم في نظام المصادقة
+            $table->foreignId('warehouse_id')->nullable()->unique()->constrained('warehouses')->cascadeOnDelete();
+            $table->rememberToken();
             $table->timestamps();
         });
     }

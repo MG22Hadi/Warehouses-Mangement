@@ -21,13 +21,18 @@ class WarehouseSeeder extends Seeder
 //            Warehouse::create($warehouse);
 //        }
 
-        $numberOfWarehouses = 10;
+        //$numberOfWarehouses = 10;
+        $numberOfWarehouses = 1;
         $location = 'دمشق';
+       // $department_id=1;
 
         for ($i = 0; $i < $numberOfWarehouses; $i++) {
             Warehouse::create([
                 'name' => 'مستودع ' . ($i + 1),
                 'location' => $location,
+               // 'department_id'=>$department_id,
+                //'department_id'=>($i + 1),
+
             ]);
 
         }

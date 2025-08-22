@@ -21,15 +21,16 @@ class WarehouseController extends Controller
             'name' => 'required|string|max:255',
             'location' => 'required|string|max:255',
             'type' => 'nullable|string',
+            //'department_id' => 'nullable|exists:departments,id', // ⚠️ أصبح اختيارياً
         ]);
-
 
         try {
             $warehouse = Warehouse::create([
                 'name' => $validated['name'],
                 'location' => $validated['location'],
+                'type' => $validated['type'] ?? null,
+                //'department_id' => $validated['department_id'] ?? null,
             ]);
-
             DB::commit();
 
             return $this->successResponse(
@@ -51,6 +52,7 @@ class WarehouseController extends Controller
             $validated = $request->validate([
                 'name' => 'string|max:255',
                 'location' => 'string|max:255',
+ //               'department_id' => 'nullable|exists:departments,id',
             ]);
 
             $warehouse = Warehouse::find($id);
@@ -99,14 +101,14 @@ class WarehouseController extends Controller
 
     public function index()
     {
-        $warehouses=Warehouse::all();
+        $warehouses=Warehouse::with('department')->get();
         return $this->successResponse($warehouses,'هذه هي كل المستودعات يا عمي ',201);
     }
 
     public function show($id)
     {
         try {
-            $warehouse = Warehouse::find($id);
+            $warehouse = Warehouse::with('department')->find($id);
 
             if (!$warehouse) {
                 return $this->notFoundResponse('المستودع غير موجود');

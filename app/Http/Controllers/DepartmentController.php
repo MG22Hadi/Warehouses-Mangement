@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Department;
+use App\Models\Manager;
+use App\Models\Warehouse;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -13,24 +15,40 @@ class DepartmentController extends Controller
     // CREATE - إضافة قسم جديد
     public function store(Request $request)
     {
-        return DB::transaction(function () use ($request) {
-            $validated = $request->validate([
-                'name' => 'required|string|max:255',
-                'manager_id' => 'required|exists:managers,id',
-                'description' => 'nullable|string',
-            ]);
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'manager_id' => 'nullable|exists:managers,id',
+            'warehouse_id' => 'nullable|exists:warehouses,id', // ⚠️ جديد: أصبح اختيارياً
+            'description' => 'nullable|string',
+        ]);
 
+        return DB::transaction(function () use ($validated) {
             $department = Department::create($validated);
 
+            // ⚠️   تحديث المدير بعد إنشاء القسم
+            if (isset($validated['manager_id'])) {
+                $manager = Manager::find($validated['manager_id']);
+                if ($manager) {
+                    $manager->update(['department_id' => $department->id]);
+                }
+            }
+
+//            if (isset($validated['warehouse_id'])) {
+//                $warehouse = Warehouse::find($validated['warehouse_id']);
+//                if ($warehouse) {
+//                    $warehouse->update(['department_id' => $department->id]);
+//                }
+//            }
+
             return $this->successResponse($department, 'تم إنشاء القسم بنجاح', 201);
-        }, 3); // 3 = عدد محاولات إعادة التنفيذ إذا صار Deadlock
+        }, 3);
     }
 
     // READ - جلب جميع الأقسام
     public function index()
     {
         try {
-            $departments = Department::with('manager')->get();
+            $departments = Department::with(['manager', 'warehouse'])->get();
             return $this->successResponse($departments, 'تم جلب الأقسام بنجاح');
         } catch (\Throwable $e) {
             return $this->handleExceptionResponse($e, 'فشل في جلب الأقسام');
@@ -41,7 +59,7 @@ class DepartmentController extends Controller
     public function show($id)
     {
         try {
-            $department = Department::with('manager')->find($id);
+            $department = Department::with(['manager', 'warehouse'])->find($id);
 
             if (!$department) {
                 return $this->notFoundResponse('القسم غير موجود');

@@ -13,8 +13,10 @@ use App\Http\Controllers\LocationController;
 use App\Http\Controllers\MaterialRequestController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\PurchaseRequestController;
 use App\Http\Controllers\RoomController;
 use App\Http\Controllers\ScrapNoteController;
+use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\WarehouseController;
 use App\Models\EntryNote;
 use Illuminate\Http\Request;
@@ -164,6 +166,21 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/Notification/{id}',[NotificationController::class,'show']);
     Route::get('/markAsRead-allNotification-S',[NotificationController::class,'markAllAsRead']);
 
+
+    //SUPPLIERS
+    Route::get('/suppliers', [SupplierController::class, 'index']);
+    Route::post('/suppliers/store', [SupplierController::class, 'store']);
+    Route::get('supplier/show/{id}', [SupplierController::class, 'show']);
+    Route::put('supplier/update/{id}', [SupplierController::class, 'update']);
+
+    //PurchaseRequests
+    Route::get('/purchase-requests', [PurchaseRequestController::class, 'index']);
+    Route::post('/purchase-requests/store', [PurchaseRequestController::class, 'store']);
+    Route::get('/purchase-requests/show/{id}', [PurchaseRequestController::class, 'show']);
+    Route::put('/purchase-requests/update/{id}', [PurchaseRequestController::class, 'update']);
+    Route::put('/purchase-requests/{id}/approve', [PurchaseRequestController::class, 'approve']);
+    Route::put('/purchase-requests/{id}/reject', [PurchaseRequestController::class, 'reject']);
+    Route::get('/purchase-requests/my-requests', [PurchaseRequestController::class, 'myRequests']);
 
 
 });

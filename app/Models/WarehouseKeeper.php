@@ -8,8 +8,12 @@ use Laravel\Sanctum\HasApiTokens;
 class WarehouseKeeper extends Model
 {
     use HasApiTokens;
-    protected $fillable = ['name', 'email', 'password', 'phone'];
+    protected $fillable = ['name', 'email', 'password', 'phone','warehouse_id',];
 
+    public function warehouse()
+    {
+        return $this->belongsTo(Warehouse::class);
+    }
 
     public function materialRequests()
     {

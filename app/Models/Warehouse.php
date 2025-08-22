@@ -9,8 +9,21 @@ class Warehouse extends Model
     protected $fillable = [
         'name',
         'location',
+        //'department_id',
         //'type'
     ];
+
+    public function department()
+    {
+        // ⚠️ العلاقة الصحيحة: مستودع يملك قسمًا (hasOne)
+        // لاحظ أننا نحدد المفتاح الخارجي والمفتاح المحلي
+        return $this->hasOne(Department::class, 'warehouse_id', 'id');
+    }
+
+    public function warehouseKeepers()
+    {
+        return $this->hasOne(WarehouseKeeper::class);
+    }
 
     public function stock()
     {
