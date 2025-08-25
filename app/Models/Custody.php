@@ -10,7 +10,7 @@ class Custody extends Model
         'user_id',
         'room_id',
         'date',
-        'notes'
+        'notes',
     ];
 
     protected $casts = [

@@ -22,7 +22,7 @@ class CustodyController extends Controller
     {
         $validator= validator($request->all(),[
             'user_id'=>'required|exists:users,id',
-            'room_id'=>'nullable|exists:rooms,id',
+            //'room_id'=>'nullable|exists:rooms,id',
             'date'=>'required|date',
             'notes'=>'nullable|string',
             'items'=>'required|array|min:1',
@@ -39,7 +39,7 @@ class CustodyController extends Controller
         try{
             $custody= Custody::create([
                 'user_id'=>$request->user_id,
-                'room_id'=>$request->room_id,
+                //'room_id'=>$request->room_id,
                 'date'=>$request->date,
                 'notes'=>$request->notes
             ]);
@@ -61,7 +61,13 @@ class CustodyController extends Controller
             );
         }catch (\Throwable $e){
             DB::rollBack();
-            return $this->handleExceptionResponse($e);
+            // Return the actual error message and file location
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ], 500);
         }
     }
 
@@ -116,6 +122,7 @@ class CustodyController extends Controller
         }
 
          * */
+
         $allCustodies = Custody::with('user', 'items.product','room')->get();
 
         // يمكنك أيضاً إضافة فحص هنا إذا كانت لا توجد أي عهدة على الإطلاق
@@ -129,11 +136,6 @@ class CustodyController extends Controller
     // عرض عهد غرفة ما
     public function showRoomCustodies(Request $request, int $roomId) // هنا التغيير
     {
-        // **(اختياري) تطبيق الصلاحيات:**
-//        $user = $request->user();
-//        if (!$user || (!property_exists($user, 'is_warehouse_manager') || !$user->is_warehouse_manager) && !$user->isAdmin) {
-//            return $this->unauthorizedResponse('ليس لديك صلاحية لعرض عهد هذه الغرفة.');
-//        }
 
         try {
             // **البحث اليدوي عن الغرفة:**
@@ -175,19 +177,6 @@ class CustodyController extends Controller
     public function getSpecificUserRooms(Request $request, User $user)
     {
         $warehouseManager = $request->user();
-
-        // **التحقق من صلاحية أمين المستودع:**
-        // يجب أن يكون المستخدم المصادق عليه هو أمين مستودع.
-        // (افترض أن لديك حقل 'is_warehouse_manager' أو نظام صلاحيات مثل Spatie)
-//        if (!$warehouseManager || !property_exists($warehouseManager, 'is_warehouse_manager') || !$warehouseManager->is_warehouse_manager) {
-//            // أو: if (!$warehouseManager->hasRole('warehouse_manager')) {
-//            return $this->unauthorizedResponse('ليس لديك صلاحية لعرض غرف المستخدمين الآخرين.');
-//        }
-
-
-
-
-
         // جلب الغرف التي يمتلكها المستخدم المحدد (user_id في جدول rooms)
         // وتحميل علاقة المبنى لكل غرفة.
         $rooms = $user->ownedRooms()->with('building')->get(); // **مهم:** تأكد أن `ownedRooms` معرفة في نموذج `User`

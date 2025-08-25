@@ -38,7 +38,13 @@ class UserController extends Controller
                 'phone' => 'sometimes|string|unique:users',
                 'password' => 'required|string|min:8',
                 'job_title' => 'required|string',
-                'department_id' => 'required|exists:departments,id'
+                'department_id' => 'required|exists:departments,id',
+                'gender'       => 'sometimes|nullable|string',
+                'address'      => 'sometimes|nullable|string',
+                'birth_date'   => 'sometimes|nullable|date',
+                'facebook_url'  => 'sometimes|nullable|url',
+                'instagram_url' => 'sometimes|nullable|url',
+
             ]);
 
             if ($validator->fails()) {

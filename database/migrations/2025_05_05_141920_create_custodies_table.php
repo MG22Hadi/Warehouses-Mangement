@@ -13,6 +13,7 @@ return new class extends Migration
             $table->foreignId('user_id')->constrained('users');
 
             //
+            $table->foreignId('room_id')->nullable()->constrained('rooms');
 
             $table->date('date');
             $table->text('notes')->nullable();
