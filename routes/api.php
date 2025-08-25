@@ -173,7 +173,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::prefix('v1')->group(function () {
         Route::apiResource('users', UserController::class);
-        Route::get('me', [UserController::class, 'show'])->middleware('auth:sanctum');
+        Route::get('me', [UserController::class, 'showActive'])->middleware('auth:sanctum');
     });
 
 

@@ -64,7 +64,25 @@ class UserController extends Controller
     /**
      * عرض مستخدم معين
      */
-    public function show()
+    public function show($id)
+    {
+        try {
+            $user = User::find($id);
+
+            if (!$user) {
+                return $this->notFoundResponse('المستخدم غير موجود ');
+            }
+
+            return $this->successResponse($user, 'تم جلب المستخدم بنجاح');
+        } catch (\Exception $e) {
+            return $this->handleExceptionResponse($e);
+        }
+    }
+
+    /**
+     * عرض مستخدم النشط حاليا (للموبايل)
+     */
+    public function showActive()
     {
         try {
             $user = Auth::user(); // ✅ المستخدم بناءً على التوكن الحالي
