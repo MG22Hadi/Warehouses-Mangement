@@ -56,15 +56,15 @@ class MaterialRequestController extends Controller
 
         try {
             $result = DB::transaction(function () use ($request) {
-                $user = $request->user();
+                $user = $request->user()->load('department.manager');
 
-                if (!$user || !$user->warehouse || !$user->warehouse->department->manager) {
+                if (!$user || !$user->department || !$user->department->manager) {
                     // رجّع استثناء بدل response
                     throw new \Exception('المستخدم أو المدير غير موجود');
                 }
 
-                $manager = $user->warehouse->department->manager;
-
+                $manager = $user->department->manager;
+                
                 $serialNumber = 'MR-' . date('YmdHis') . '-' . Str::random(4);
 
                 $materialRequest = MaterialRequest::create([
