@@ -161,12 +161,17 @@ class LocationController extends Controller
         return $this->successResponse( $formattedData,'تم استرجاع مواقع المنتج بنجاح.');
     }
 
-    public function assignLocation(Request $request, $type, $itemId)
+    public function assignLocation(Request $request,)
     {
         $request->validate([
+            'type' => 'required|in:entry,receiving',
+            'item_id' => 'required|integer',
             'location_id' => 'required|exists:locations,id',
             'quantity' => 'required|numeric|min:0.01',
         ]);
+
+        $type = $request->type;
+        $itemId = $request->item_id;
 
         // 1. تحديد المصدر (Entry أو Receiving)
         if ($type === 'entry') {
