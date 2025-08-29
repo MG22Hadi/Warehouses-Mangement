@@ -10,6 +10,18 @@ use Laravel\Sanctum\HasApiTokens;
 class WarehouseKeeper extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable;
+    protected $fillable = [
+        'name',
+        'email',
+        'phone',
+        'password',
+        'warehouse_id',
+        'gender',
+        'address',
+        'birth_date',
+        'facebook_url',
+        'instagram_url',
+    ];
 
     public function warehouse()
     {
