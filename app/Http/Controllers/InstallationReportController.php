@@ -10,6 +10,8 @@ use App\Models\Product;
 use App\Models\ProductLocation;
 use App\Models\ProductMovement;
 use App\Models\Stock;
+use App\Models\WarehouseKeeper;
+use App\Services\NotificationService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -20,6 +22,12 @@ class InstallationReportController extends Controller
 {
     //
     use ApiResponse;
+    protected $notificationService;
+
+    public function __construct(NotificationService $notificationService)
+    {
+        $this->notificationService = $notificationService;
+    }
     public function index(Request $request)
     {
         try {
@@ -109,6 +117,7 @@ class InstallationReportController extends Controller
             return $this->validationErrorResponse($validator);
         }
 
+
         try {
             $installationReport = null;
             $user = Auth::user();
@@ -150,9 +159,54 @@ class InstallationReportController extends Controller
                 }
             });
 
+            try {
+                //  إيجاد المدير عبر العلاقات: أمين المستودع -> مستودع -> قسم -> مدير
+                $warehouseKeeper = WarehouseKeeper::where('id', $user->id)->firstOrFail();
+
+                $warehouseId = $request->warehouse_id ?? null;
+
+                $warehouse = $warehouseKeeper->warehouse()
+                    ->when($warehouseId, function ($q) use ($warehouseId) {
+                        $q->where('id', $warehouseId);
+                    })
+                    ->first();
+                if (!$warehouse) {
+                    throw new \Exception('لا يوجد مستودع مرتبط بأمين المستودع.');
+                }
+
+                $department = $warehouse->department;
+                if (!$department) {
+                    throw new \Exception('لا يوجد قسم مرتبط بالمستودع.');
+                }
+
+                $manager = $department->manager;
+                if (!$manager) {
+                    throw new \Exception('لا يوجد مدير مرتبط بالقسم.');
+                }
+
+            } catch (\Exception $e) {
+                return $this->errorResponse(
+                    'فشل في تحديد مدير القسم المرتبط بأمين المستودع: ' . $e->getMessage(),
+                    404,
+                    [],
+                    'MANAGER_NOT_FOUND'
+                );
+            }
+            // 🔔 إشعار المدير
+            //$manager = $installationReport->manager;
+            if ($manager && isset($this->notificationService)) {
+                $this->notificationService->notify(
+                    $manager,
+                    'طلب ضبط تركيب جديد',
+                    'يوجد ضبط تركيب جديد بانتظار المراجعة (رقم: ' . $installationReport->serial_number . ')',
+                    'installationReport-request',
+                    $installationReport->id
+                );
+            }
+
             return $this->successResponse(
                 $installationReport->load('materials'),
-                'تم إنشاء تقرير التركيب بنجاح. بانتظار موافقة المدير.'
+                'تم إنشاء تقرير التركيب بنجاح وإرسال إشعار للمدير. بانتظار موافقة المدير.'
             );
         } catch (\Exception $e) {
             return $this->errorResponse(
@@ -222,12 +276,24 @@ class InstallationReportController extends Controller
                 ]);
             });
 
+            // 🔔 إشعار للـ warehouseKeeper (المنشئ)
+            $creator =$report->createdBy;
+            if ($creator) {
+                $this->notificationService->notify(
+                    $creator,
+                    'الموافقة على ضبط تركيب',
+                    'تمت الموافقة على ضبط التركيب الخاص بك (رقم: ' .$report->serial_number . ').',
+                    'installationReport-request',
+                    $report->id
+                );
+            }
+
             return $this->successResponse(
                 [
                     'report' => $report->load('materials'),
                     'location_messages' => $locationMessages,
                 ],
-                'تمت الموافقة على تقرير التركيب بنجاح.'
+                'تمت الموافقة على تقرير التركيب بنجاح و إشعار لأمين المستودع.'
             );
         } catch (\Exception $e) {
             return $this->errorResponse(
@@ -264,9 +330,21 @@ class InstallationReportController extends Controller
                 ]);
             });
 
+            // 🔔 إشعار للـ warehouseKeeper (المنشئ)
+            $creator =$report->createdBy;
+            if ($creator) {
+                $this->notificationService->notify(
+                    $creator,
+                    'رفض ضبط تركيب',
+                    'تمت رفض ضبط التركيب الخاص بك (رقم: ' .$report->serial_number . ').',
+                    'installationReport-request',
+                    $report->id
+                );
+            }
+
             return $this->successResponse(
                 null,
-                'تم رفض تقرير التركيب بنجاح.'
+                'تم رفض تقرير التركيب بنجاح و إرسال إشعار لأمين المستودع بالرفض.'
             );
 
         } catch (\Exception $e) {

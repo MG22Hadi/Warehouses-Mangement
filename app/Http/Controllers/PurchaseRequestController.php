@@ -57,8 +57,9 @@ class PurchaseRequestController extends Controller
 
     public function store(Request $request)
     {
+        $user = Auth::user();
         $validator = Validator::make($request->all(), [
-            'created_by' => 'required|exists:warehouse_keepers,id', // ⚠️ يجب أن يكون ID أمين المستودع موجوداً
+            //'created_by' => 'required|exists:warehouse_keepers,id', // ⚠️ يجب أن يكون ID أمين المستودع موجوداً
             'supplier_id' => 'required|exists:suppliers,id',
             'request_date' => 'required|date',
             'notes' => 'nullable|string',
@@ -88,10 +89,17 @@ class PurchaseRequestController extends Controller
 //                'MANAGER_NOT_FOUND'
 //            );
 //        }
+        //TODO
         try {
-            $warehouseKeeper = WarehouseKeeper::findOrFail($request->created_by);
+            $warehouseKeeper = WarehouseKeeper::where('id', $user->id)->firstOrFail();
 
-            $warehouse = $warehouseKeeper->warehouse->first(); // اختر أول مستودع
+            $warehouseId = $request->warehouse_id ?? null;
+
+            $warehouse = $warehouseKeeper->warehouse()
+                ->when($warehouseId, function ($q) use ($warehouseId) {
+                    $q->where('id', $warehouseId);
+                })
+                ->first();
             if (!$warehouse) {
                 throw new \Exception('لا يوجد مستودع مرتبط بأمين المستودع.');
             }
@@ -121,8 +129,9 @@ class PurchaseRequestController extends Controller
         try {
             DB::transaction(function () use ($request, $managerId, &$purchaseRequest) {
                 $purchaseRequest = PurchaseRequest::create([
-                    'created_by' => $request->created_by,
-                    'manager_id' => $managerId,
+                    'created_by' =>Auth::user()->id,
+                //'manager_id' => $managerId,
+                    'manager_id' => null,
                     'supplier_id' => $request->supplier_id,
                     'serial_number' => $this->generateSerialNumber(),
                     'status' => 'pending',
@@ -143,7 +152,7 @@ class PurchaseRequestController extends Controller
             $purchaseRequest->load(['createdBy.warehouse.department.manager', 'supplier', 'items.product']);
 
             // 🔔 إشعار للمدير المحدد
-            $manager = $purchaseRequest->manager;
+            //$manager = $purchaseRequest->manager;
             if ($manager) {
                 // تأكد من أن notificationService معرف ومتاح
                 if (isset($this->notificationService)) {

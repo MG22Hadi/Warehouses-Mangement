@@ -179,7 +179,7 @@ class MaterialRequestController extends Controller
             $this->notificationService->notify(
                 $requestModel->requestedBy, // اليوزر يلي قدّم الطلب
                 'تمت الموافقة على طلبك',
-                'وافق المدير على طلبك، يرجى التوجه إلى أمين المستودع لاستلام المواد.',
+                "وافق المدير على طلبك رقم {$requestModel->serial_number}، يرجى التوجه إلى أمين المستودع لاستلام المواد.",
                 'request_approved',
                 $requestModel->id
             );
@@ -191,7 +191,7 @@ class MaterialRequestController extends Controller
                 $this->notificationService->notify(
                     $warehouseKeeper,
                     'مطلوب إنشاء مذكرة إخراج',
-                    'تمت الموافقة على طلب مواد. يرجى إنشاء مذكرة إخراج للطلب رقم: ' . $requestModel->id,
+                    "تمت الموافقة على طلب مواد رقم {$requestModel->serial_number}. يرجى إنشاء مذكرة إخراج للطلب  " ,
                     'request_to_release',
                     $requestModel->id
                 );
@@ -274,7 +274,7 @@ class MaterialRequestController extends Controller
             $this->notificationService->notify(
                 $requestModel->requestedBy,
                 'تم تعديل طلبك',
-                'وافق المدير على طلبك لكن عدّل بعض الكميات. يرجى التوجه إلى أمين المستودع لاستلام المواد.',
+                "وافق المدير على طلبك رقم {$requestModel->serial_number} لكن عدّل بعض الكميات. يرجى التوجه إلى أمين المستودع لاستلام المواد.",
                 'request_edited',
                 $requestModel->id
             );
@@ -286,7 +286,7 @@ class MaterialRequestController extends Controller
                 $this->notificationService->notify(
                     $warehouseKeeper,
                     'مطلوب إنشاء مذكرة إخراج',
-                    'تمت الموافقة على طلب مواد. يرجى إنشاء مذكرة إخراج للطلب رقم: ' . $requestModel->id,
+                    "تمت الموافقة على طلب مواد رقم {$requestModel->serial_number}. يرجى إنشاء مذكرة إخراج للطلب " ,
                     'request_to_release',
                     $requestModel->id
                 );
@@ -296,7 +296,7 @@ class MaterialRequestController extends Controller
             DB::commit();
             return $this->successResponse(
                 MaterialRequest::with(['items.product'/*, 'approvedBy'*/, 'manager', 'requestedBy'])->find($id),
-                'تم تعديل والموافقة على طلب المواد بنجاح وارسال إشعار للموظف و إشعار لأمين المستودع'
+                'تم تعديل والموافقة على طلب المواد بنجاح وإرسال إشعار للموظف و إشعار لأمين المستودع'
             );
 
         } catch (\Exception $e) {
@@ -338,14 +338,14 @@ class MaterialRequestController extends Controller
             $this->notificationService->notify(
                 $requestModel->requestedBy,
                 'تم رفض طلبك',
-                'عذراً، لقد تم رفض طلب المواد الخاص بك من قبل المدير.',
+                "عذراً، لقد تم رفض طلب المواد الخاص بك رقم {$requestModel->serial_number} من قبل المدير.",
                 'request_rejected',
                 $requestModel->id
             );
 
             return $this->successResponse(
                 MaterialRequest::with(['manager', 'requestedBy', 'items.product'])->find($id),
-                ' تم رفض طلب المواد بنجاح و إرسال إشعار للموظف'
+                " تم رفض طلب المواد بنجاح و إرسال إشعار للموظف"
             );
 
         } catch (\Exception $e) {
