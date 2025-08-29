@@ -72,15 +72,43 @@ class PurchaseRequestController extends Controller
         }
 
         // ⚠️ الخطوة الحاسمة: جلب المدير عبر العلاقات
+//        try {
+//            // نجد أمين المستودع بناءً على ID المرسل في الطلب
+//            $warehouseKeeper = WarehouseKeeper::findOrFail($request->created_by);
+//
+//            // نصل إلى المدير عبر سلسلة العلاقات: أمين المستودع -> المستودع -> القسم -> المدير
+//            $managerId = $warehouseKeeper->warehouse->department->manager_id;
+//
+//        } catch (Exception $e) {
+//            // هذا الخطأ سيحدث إذا كانت إحدى العلاقات غير موجودة (مثل warehouse_id في جدول warehouse_keepers فارغ)
+//            return $this->errorResponse(
+//                'فشل في تحديد مدير القسم المرتبط بأمين المستودع: ' . $e->getMessage(),
+//                404,
+//                [],
+//                'MANAGER_NOT_FOUND'
+//            );
+//        }
         try {
-            // نجد أمين المستودع بناءً على ID المرسل في الطلب
             $warehouseKeeper = WarehouseKeeper::findOrFail($request->created_by);
 
-            // نصل إلى المدير عبر سلسلة العلاقات: أمين المستودع -> المستودع -> القسم -> المدير
-            $managerId = $warehouseKeeper->warehouse->department->manager_id;
+            $warehouse = $warehouseKeeper->warehouse->first(); // اختر أول مستودع
+            if (!$warehouse) {
+                throw new \Exception('لا يوجد مستودع مرتبط بأمين المستودع.');
+            }
 
-        } catch (Exception $e) {
-            // هذا الخطأ سيحدث إذا كانت إحدى العلاقات غير موجودة (مثل warehouse_id في جدول warehouse_keepers فارغ)
+            $department = $warehouse->department;
+            if (!$department) {
+                throw new \Exception('لا يوجد قسم مرتبط بالمستودع.');
+            }
+
+            $manager = $department->manager;
+            if (!$manager) {
+                throw new \Exception('لا يوجد مدير مرتبط بالقسم.');
+            }
+
+            $managerId = $manager->id;
+
+        } catch (\Exception $e) {
             return $this->errorResponse(
                 'فشل في تحديد مدير القسم المرتبط بأمين المستودع: ' . $e->getMessage(),
                 404,
@@ -88,6 +116,7 @@ class PurchaseRequestController extends Controller
                 'MANAGER_NOT_FOUND'
             );
         }
+
 
         try {
             DB::transaction(function () use ($request, $managerId, &$purchaseRequest) {
