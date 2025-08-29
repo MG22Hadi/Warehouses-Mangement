@@ -14,7 +14,6 @@ return new class extends Migration
             $table->string('email')->nullable()->unique();
             $table->string('phone')->nullable()->unique();
             $table->string('password');
-            $table->foreignId('warehouse_id')->nullable()->unique()->constrained('warehouses')->cascadeOnDelete();
             $table->string('gender')->nullable();
             $table->text('address')->nullable();
             $table->date('birth_date')->nullable();

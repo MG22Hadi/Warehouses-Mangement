@@ -20,7 +20,6 @@ class WarehouseController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'location' => 'required|string|max:255',
-            'type' => 'nullable|string',
         ]);
 
         try {
@@ -32,11 +31,8 @@ class WarehouseController extends Controller
                 $newWarehouse = Warehouse::create([
                     'name' => $validated['name'],
                     'location' => $validated['location'],
-                    'type' => $validated['type'] ?? null,
+                    'warehouse_keeper_id' => $authenticatedWarehouseKeeper->id, // ✅ ربط المستودع مع الأمين
                 ]);
-
-                // ⚠️ 2. ربط المستودع الجديد بأمين المستودع مباشرة
-                $authenticatedWarehouseKeeper->update(['warehouse_id' => $newWarehouse->id]);
 
                 return $newWarehouse;
             });
@@ -69,7 +65,7 @@ class WarehouseController extends Controller
             $warehouse->update($validated);
 
             DB::commit();
-            return $this->successResponse($warehouse, 'تم تعديل المستودع بنجاح', 201);
+            return $this->successResponse($warehouse, 'تم تعديل المستودع بنجاح', 200);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return $this->validationErrorResponse($e->validator);
         } catch (\Throwable $e) {
@@ -104,14 +100,31 @@ class WarehouseController extends Controller
 
     public function index()
     {
-        $warehouses=Warehouse::all();
-        return $this->successResponse($warehouses,'هذه هي كل المستودعات يا عمي ',201);
+        $warehouseKeeper = Auth::user(); // أمين المستودع المسجل الدخول
+
+        $warehouses = $warehouseKeeper->warehouse()->get();
+
+        if ($warehouses->isEmpty()) {
+            return $this->errorResponse(
+                'عذراً، لم تقم بإنشاء أي مستودع بعد.',
+                403,
+                [],
+                'NO_WAREHOUSES'
+            );
+        }
+
+        return $this->successResponse(
+            $warehouses,
+            'هذه هي كل المستودعات يا عمي.',
+            200
+        );
     }
+
 
     public function show($id)
     {
         try {
-            $warehouse = Warehouse::with(['department', 'stock.product'])->find($id);
+            $warehouse = Warehouse::with(['warehouseKeepers', 'stock.product'])->find($id);
             // استخدم with() لجلب علاقة المنتجات 'products'
 
             if (!$warehouse) {

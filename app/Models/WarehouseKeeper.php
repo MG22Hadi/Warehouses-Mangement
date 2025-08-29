@@ -25,7 +25,7 @@ class WarehouseKeeper extends Authenticatable
 
     public function warehouse()
     {
-        return $this->belongsTo(Warehouse::class);
+        return $this->hasMany(Warehouse::class);
     }
 
     public function materialRequests()

@@ -9,8 +9,7 @@ class Warehouse extends Model
     protected $fillable = [
         'name',
         'location',
-        //'department_id',
-        //'type'
+        'warehouse_keeper_id',
     ];
 
     public function department()
@@ -22,7 +21,7 @@ class Warehouse extends Model
 
     public function warehouseKeepers()
     {
-        return $this->hasOne(WarehouseKeeper::class);
+        return $this->belongsTo(WarehouseKeeper::class);
     }
 
     public function stock()
@@ -50,5 +49,5 @@ class Warehouse extends Model
     {
         return $this->hasMany(Location::class);
     }
-    
+
 }
