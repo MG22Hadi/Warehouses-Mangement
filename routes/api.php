@@ -13,6 +13,7 @@ use App\Http\Controllers\LocationController;
 use App\Http\Controllers\MaterialRequestController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\ProductMovementController;
 use App\Http\Controllers\PurchaseRequestController;
 use App\Http\Controllers\ReceivingNoteController;
 use App\Http\Controllers\RoomController;
@@ -200,5 +201,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/allReceivingNote', [ReceivingNoteController::class, 'index']);
     Route::get('/receivingNote/{id}', [ReceivingNoteController::class, 'show']);
     Route::post('/receivingNote/store', [ReceivingNoteController::class, 'store']);
+
+    // product Movement
+
+    Route::get('product-movements/{productId}/byMonth', [ProductMovementController::class, 'getMovementsByMonth']);
+    Route::get('product-movements/{productId}', [ProductMovementController::class, 'showProductMovement']);
+    Route::get('products/monthlyBalances', [ProductMovementController::class, 'getMonthlyProductBalances']);
+
 
 });
