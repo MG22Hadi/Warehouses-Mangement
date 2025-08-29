@@ -64,7 +64,7 @@ class MaterialRequestController extends Controller
                 }
 
                 $manager = $user->department->manager;
-                
+
                 $serialNumber = 'MR-' . date('YmdHis') . '-' . Str::random(4);
 
                 $materialRequest = MaterialRequest::create([
@@ -153,6 +153,7 @@ class MaterialRequestController extends Controller
     public function approveRequest($id)
     {
         try {
+            DB::beginTransaction();
             $requestModel = MaterialRequest::with(['items', 'manager', 'requestedBy'])->find($id);
 
             if (!$requestModel) {
@@ -183,8 +184,24 @@ class MaterialRequestController extends Controller
                 $requestModel->id
             );
 
-            return $this->successResponse($requestModel, 'تمت الموافقة على الطلب وإرسال إشعار للموظف', 201);
+            // ✨ إشعار أمين المستودع
+            $warehouseKeeper = $requestModel->requestedBy?->department?->warehouse?->warehouseKeeper;
+
+            if ($warehouseKeeper) {
+                $this->notificationService->notify(
+                    $warehouseKeeper,
+                    'مطلوب إنشاء مذكرة إخراج',
+                    'تمت الموافقة على طلب مواد. يرجى إنشاء مذكرة إخراج للطلب رقم: ' . $requestModel->id,
+                    'request_to_release',
+                    $requestModel->id
+                );
+            }
+
+
+            DB::commit();
+            return $this->successResponse($requestModel, 'تمت الموافقة على الطلب وإرسال إشعار للموظف و إشعار لأمين المستودع', 201);
         } catch (\Exception $e) {
+            DB::rollBack();
             return $this->errorResponse(
                 'فشل في الموافقة على الطلب: ' . $e->getMessage(),
                 500,
@@ -208,6 +225,7 @@ class MaterialRequestController extends Controller
         }
 
         try {
+            DB::beginTransaction();
             $requestModel = DB::transaction(function () use ($id, $request) {
                 $requestModel = MaterialRequest::with(['items', 'requestedBy'])->find($id);
 
@@ -261,12 +279,28 @@ class MaterialRequestController extends Controller
                 $requestModel->id
             );
 
+            // ✨ إشعار أمين المستودع
+            $warehouseKeeper = $requestModel->requestedBy?->department?->warehouse?->warehouseKeeper;
+
+            if ($warehouseKeeper) {
+                $this->notificationService->notify(
+                    $warehouseKeeper,
+                    'مطلوب إنشاء مذكرة إخراج',
+                    'تمت الموافقة على طلب مواد. يرجى إنشاء مذكرة إخراج للطلب رقم: ' . $requestModel->id,
+                    'request_to_release',
+                    $requestModel->id
+                );
+            }
+
+
+            DB::commit();
             return $this->successResponse(
-                MaterialRequest::with(['items.product', 'approvedBy', 'manager', 'requestedBy'])->find($id),
-                'تم تعديل والموافقة على طلب المواد بنجاح وارسال إشعار للموظف'
+                MaterialRequest::with(['items.product'/*, 'approvedBy'*/, 'manager', 'requestedBy'])->find($id),
+                'تم تعديل والموافقة على طلب المواد بنجاح وارسال إشعار للموظف و إشعار لأمين المستودع'
             );
 
         } catch (\Exception $e) {
+            DB::rollBack();
             return $this->errorResponse(
                 'فشل في اعتماد الطلب: ' . $e->getMessage(),
                 422,
