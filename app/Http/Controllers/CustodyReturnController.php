@@ -257,6 +257,38 @@ class CustodyReturnController extends Controller
 
                 $custodyReturn->status = $hasIssues ? 'partially_completed' : 'completed';
                 $custodyReturn->save();
+
+                $custodyReturn = $custodyReturnItem->custodyReturn;
+                // إشعارات حسب الحالة
+                if ($newStatus === 'accepted') {
+                    // إشعار للموظف (صاحب الطلب)
+                    $this->notificationService->notify(
+                        $custodyReturn->user, // الموظف
+                        'الموافقة على إرجاع العهدة',
+                        'تمت الموافقة على طلب إرجاع العهدة الخاص بك.',
+                        $custodyReturn->id
+                    );
+
+                    // إشعار لأمين المستودع
+                    if ($custodyReturnItem->warehouse && $custodyReturnItem->warehouse->warehouseKeeper) {
+                        $this->notificationService->notify(
+                            $custodyReturnItem->warehouse->warehouseKeeper, // أمين المستودع
+                            'إرجاع عهدة تمت الموافقة عليه',
+                            'تمت الموافقة على طلب إرجاع عهدة، يرجى المتابعة.',
+                            $custodyReturn->id
+                        );
+                    }
+                }
+
+                if ($newStatus === 'rejected') {
+                    // إشعار للموظف فقط
+                    $this->notificationService->notify(
+                        $custodyReturn->user,
+                        'رفض طلب إرجاع العهدة',
+                        'تم رفض طلب إرجاع العهدة الخاص بك.',
+                        $custodyReturn->id
+                    );
+                }
             }
 
             DB::commit();
