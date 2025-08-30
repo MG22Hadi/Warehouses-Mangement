@@ -11,6 +11,7 @@ class Product extends Model
         'code',
         'unit',
         'consumable',
+        'danger_quantity',
         'notes',
         'image_path',
     ];

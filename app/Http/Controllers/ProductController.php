@@ -48,60 +48,6 @@ class ProductController extends Controller
         ]);
     }
 
-
-//    public function store(Request $request)
-//    {
-//        $validated = $request->validate([
-//            'name' => 'required|string|max:255',
-//            'code' => 'required|string|max:255|unique:products,code',
-//            'unit' => 'required|string|max:50',
-//            'consumable' => 'required|boolean',
-//            'notes' => 'nullable|string',
-//            'warehouse_id' => 'required|exists:warehouses,id',
-//            'image' => 'nullable|image|mimes:jpeg,png,jpg',
-//        ]);
-//
-//        DB::beginTransaction();
-//
-//        try {
-//            $productData = [
-//                'name' => $validated['name'],
-//                'code' => $validated['code'],
-//                'unit' => $validated['unit'],
-//                'consumable' => $validated['consumable'],
-//                'notes' => $validated['notes'] ?? null,
-//            ];
-//
-//            // تحديد مسار الصورة الافتراضي قبل التحقق
-//            $imagePath = 'images/default.jpg';
-//
-//            // حفظ الصورة إذا وجدت
-//            if ($request->hasFile('image')) {
-//                $imagePath = $request->file('image')->store('products', 'public');
-//                $productData['image_path'] = $imagePath;
-//            }
-//
-//            $product = Product::create($productData);
-//
-//            // إضافة لسطر المخزون بكمية صفر
-//            $stock = Stock::create([
-//                'warehouse_id' => $validated['warehouse_id'],
-//                'product_id' => $product->id,
-//                'quantity' => 0,
-//            ]);
-//
-//            DB::commit();
-//
-//            return $this->successResponse([
-//                'product' => $product->load('stocks'),
-//                'image_path' => $product->image_path, // إرجاع رابط الصورة
-//            ], 'تم إنشاء المنتج وربطه بالمستودع بنجاح', 201);
-//
-//        } catch (\Exception $e) {
-//            DB::rollBack();
-//            return $this->errorResponse('فشل في إنشاء المنتج: ' . $e->getMessage(), 500);
-//        }
-//    }
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -109,6 +55,7 @@ class ProductController extends Controller
             'code' => 'required|string|max:255|unique:products,code',
             'unit' => 'required|string|max:50',
             'consumable' => 'required|boolean',
+            'danger_quantity' =>'nullable|numeric',
             'notes' => 'nullable|string',
             'warehouse_id' => 'required|exists:warehouses,id',
             'image' => 'nullable|image|mimes:jpeg,png,jpg',
@@ -122,6 +69,7 @@ class ProductController extends Controller
                 'code' => $validated['code'],
                 'unit' => $validated['unit'],
                 'consumable' => $validated['consumable'],
+                'danger_quantity' =>$validated['danger_quantity'],
                 'notes' => $validated['notes'] ?? null,
             ];
 

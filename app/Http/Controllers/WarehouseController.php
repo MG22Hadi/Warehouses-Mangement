@@ -124,7 +124,7 @@ class WarehouseController extends Controller
     public function show($id)
     {
         try {
-            $warehouse = Warehouse::with(['warehouseKeepers', 'stock.product'])->find($id);
+            $warehouse = Warehouse::with(['warehouseKeeper', 'stock.product'])->find($id);
             // استخدم with() لجلب علاقة المنتجات 'products'
 
             if (!$warehouse) {
