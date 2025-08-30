@@ -11,7 +11,8 @@ class Product extends Model
         'code',
         'unit',
         'consumable',
-        'notes'
+        'notes',
+        'image_path',
     ];
 
     protected $casts = [
@@ -80,5 +81,17 @@ class Product extends Model
     public function productLocations()
     {
         return $this->hasMany(ProductLocation::class);
+    }
+
+
+    // دالة للوصول إلى الصورة
+    public function getImageUrlAttribute()
+    {
+        if ($this->image_path) {
+            return asset('storage/' . $this->image_path);
+        }
+
+        // صورة افتراضية إذا لم توجد صورة
+        return asset('images/default.jpg');
     }
 }

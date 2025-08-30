@@ -17,6 +17,7 @@ return new class extends Migration
             //$table->float('volume_per_unit', 10, 4)->nullable(); // حجم الوحدة الواحدة
             $table->boolean('consumable')->default(false);
             $table->text('notes')->nullable();
+            $table->string('image_path')->nullable();
             $table->timestamps();
         });
     }

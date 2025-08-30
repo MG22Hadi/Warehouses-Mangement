@@ -69,6 +69,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/locations', [LocationController::class, 'store']);
     // مسار لعرض جميع المواقع
     Route::get('/locations', [LocationController::class, 'index']);
+
+    Route::get('/locations/show/{id}', [LocationController::class, 'show']);
+
     // مسار للحصول على مواقع منتج معين
     Route::get('/locations/product-locations', [LocationController::class, 'getProductLocations']);
 
