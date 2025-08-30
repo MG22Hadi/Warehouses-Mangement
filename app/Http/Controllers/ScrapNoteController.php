@@ -37,8 +37,6 @@ class ScrapNoteController extends Controller
         }
     }
 
-
-
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -105,79 +103,42 @@ class ScrapNoteController extends Controller
         }
     }
 
-
-
-
-    /**  ابروف قبل اللوكيشن
-    public function approve($id)
-    {
-        try {
-            DB::transaction(function () use ($id) {
-                $scrapNote = ScrapNote::with('materials')->findOrFail($id);
-
-                if ($scrapNote->status != ScrapNote::STATUS_PENDING) {
-                    throw new \Exception('لا يمكن الموافقة على مذكرة غير معلقة');
-                }
-
-                // التحقق من توفر الكميات قبل التنقيص
-                foreach ($scrapNote->materials as $material) {
-                    $available = DB::table('stocks')
-                        ->where('product_id', $material->product_id)
-                        ->sum('quantity');
-
-                    if ($available < $material->quantity) {
-                        throw new \Exception("الكمية غير متوفرة للمنتج {$material->product_id}");
-                    }
-                }
-
-                // تنقيص الكميات
-                foreach ($scrapNote->materials as $material) {
-                    DB::table('stocks')
-                        ->where('product_id', $material->product_id)
-                        ->decrement('quantity', $material->quantity);
-                }
-
-                $scrapNote->update([
-                    'status' => ScrapNote::STATUS_APPROVED,
-                    'approved_by' =>null /*auth()->id(),
-                    'approved_at' => now(),
-                ]);
-            });
-
-            return $this->successMessage(
-               'تمت الموافقة على مذكرة التلف وتنقيص الكميات بنجاح'
-            );
-
-        } catch (\Exception $e) {
-
-            return $this->errorResponse(
-                message:  'فشل في الموافقة على المذكرة' . $e->getMessage(),
-                code: 422,
-                internalCode: 'SCRAP_NOTE_CREATION_FAILED'
-            );
-        }
-    }**/
-
     public function approve(Request $request, $id)
     {
-        $user = Auth::user();
-
+        $user = $request->user();
+        $locationMessages = [];
         try {
-            DB::transaction(function () use ($id, $request, $user) {
+            DB::transaction(function () use ($id, $request, $user,  &$locationMessages) {
                 $scrapNote = ScrapNote::with('materials.product')->findOrFail($id);
 
                 if ($scrapNote->status != ScrapNote::STATUS_PENDING) {
                     throw new \Exception('لا يمكن الموافقة على مذكرة تلف غير معلقة.');
                 }
 
-                // ** لا يوجد validator هنا للكميات المعتمدة **
-                // المدير يوافق على المذكرة ككل، والكميات المعتمدة هي الكميات التي حددها أمين المستودع أصلاً.
-
                 // الحلقة: تنفيذ الخصومات والتحديثات الفعلية
                 foreach ($scrapNote->materials as $material) {
                     $productId = $material->product_id;
+
+                    // ابحث عن موقع فيه الكمية المطلوبة
+                    $productLocation = ProductLocation::where('product_id', $material->product_id)
+                        ->where('quantity', '>=', $material->quantity)
+                        ->first();
+
+                    if (!$productLocation) {
+                        throw new \Exception("الكمية المطلوبة ({$material->quantity}) من المنتج '{$material->name}' غير متوفرة في أي موقع.");
+                    }
+
+                    $location = $productLocation->location;
+
+                    // خَصْم الكَمّيَّة
+                    $productLocation->decrement('quantity', $material->quantity);
+                    $location->decrement('used_capacity_units', $material->quantity);
+
+                    // رسالة للمستخدم
+                    $locationMessages[] = "تم خصم {$material->quantity} {$material->unit} من المنتج '{$material->name}' من الموقع '{$location->name}'.";
+
+
                     $quantityToScrap = $material->quantity; // <--- استخدام الكمية الأصلية التي طلبها أمين المستودع
-                    $locationId = $material->location_id;   // <--- استخدام الـ location_id المخزن أصلاً
 
                     // إذا كانت الكمية الأصلية صفر أو أقل، لا نقوم بأي خصم أو حركة لهذه المادة
                     if ($quantityToScrap <= 0) {
@@ -185,37 +146,13 @@ class ScrapNoteController extends Controller
                         continue;
                     }
 
-                    // **تحققات إضافية (مهمة جداً):**
-                    // إعادة التحقق من توفر الكمية في الموقع **قبل** الخصم الفعلي.
-                    // هذا يمنع المشاكل إذا تم سحب المنتج من الموقع بين وقت إنشاء المذكرة والموافقة عليها.
-                    $location = Location::find($locationId);
-                    if (!$location) {
-                        throw new \Exception("الموقع (ID: {$locationId}) غير موجود للمادة التالفة (ID: {$material->id}).");
-                    }
-                    if ($material->product->unit !== $location->capacity_unit_type) {
-                        throw new \Exception("لا يمكن إتلاف المنتج (وحدته: {$material->product->unit}) من الموقع (وحدته: {$location->capacity_unit_type}). يجب أن تتطابق الوحدات.");
-                    }
-                    $productLocation = ProductLocation::where('product_id', $productId)
-                        ->where('location_id', $locationId)
-                        ->first();
-                    if (!$productLocation || $productLocation->quantity < $quantityToScrap) {
-                        $availableInLocation = $productLocation ? $productLocation->quantity : 0;
-                        throw new \Exception("الكمية المطلوبة للإتلاف ({$quantityToScrap}) للمنتج '{$material->product->name}' غير متوفرة حالياً في الموقع '{$location->name}' (المتاح: {$availableInLocation}). **يرجى رفض المذكرة وإعادة إنشائها بكميات صحيحة.**");
-                    }
 
                     // تحديث عنصر ScrappedMaterial بالكمية الأصلية كموافقة عليها
                     $material->update([
                         'quantity_approved' => $quantityToScrap, // الكمية المعتمدة هي نفسها الكمية المطلوبة
                     ]);
 
-                    // الخصم من product_locations
-                    $productLocation->decrement('quantity', $quantityToScrap);
-                    if ($productLocation->quantity <= 0) {
-                        $productLocation->delete(); // اختيارياً: حذف السجل إذا أصبحت الكمية صفراً أو أقل
-                    }
 
-                    // الخصم من locations.used_capacity_units
-                    $location->decrement('used_capacity_units', $quantityToScrap);
 
                     // تحديث المخزون الإجمالي (Stocks)
                     $stock = Stock::firstOrCreate(
@@ -231,7 +168,7 @@ class ScrapNoteController extends Controller
                         'product_id' => $productId,
                         'warehouse_id' => $location->warehouse_id,
                         'type' => 'scrap',
-                        'reference_serial' => $this->generateSerialNumberPM(),
+                        'reference_serial' => $scrapNote->serial_number,
                         'prv_quantity' => $prvQuantity,
                         'note_quantity' => $quantityToScrap,
                         'after_quantity' => $stock->quantity,
@@ -239,7 +176,7 @@ class ScrapNoteController extends Controller
                         'reference_type' => 'ScrappedMaterial',
                         'reference_id' => $material->id,
                         'user_id' => $user->id,
-                        'notes' => 'إتلاف المنتج ' . $material->product->name . ' من الموقع ' . $location->name . ' بناءً على موافقة مذكرة التلف ' . $scrapNote->serial_number,
+                        'notes' => 'إتلاف المنتج ' . $material->product->name . ' بناءً على موافقة مذكرة التلف ' . $scrapNote->serial_number,
                     ]);
                 }
 
@@ -252,13 +189,27 @@ class ScrapNoteController extends Controller
             });
 
             return $this->successResponse(
-                null,'تمت الموافقة على مذكرة التلف وتنقيص الكميات بنجاح.'
+               $locationMessages,'تمت الموافقة على مذكرة التلف وتنقيص الكميات بنجاح.'
             );
         } catch (\Throwable $e) { // استخدام Throwable لأخطاء أوسع
             DB::rollBack();
+
+            // تحقق إذا كان التطبيق في وضع التصحيح (Debug Mode)
+            if (config('app.debug')) {
+                //  في بيئة التطوير: أرجع الخطأ بالتفصيل الكامل
+                return response()->json([
+                    'success' => false,
+                    'message' => 'حدث خطأ: ' . $e->getMessage(),
+                    'file' => $e->getFile(), // <-- ملف الخطأ
+                    'line' => $e->getLine(), // <-- سطر الخطأ
+                    'trace' => $e->getTraceAsString() // <-- تتبع مسار الخطأ (اختياري لكن مفيد جداً)
+                ], 500); // 500 هو رمز الخطأ الأنسب للخوادم
+            }
+
+            // في بيئة الإنتاج: أرجع رسالة عامة وآمنة
             return $this->errorResponse(
-                message: 'فشل في الموافقة على المذكرة: ' . $e->getMessage(),
-                code: 422,
+                message: 'فشل في الموافقة على المذكرة، حدث خطأ غير متوقع.',
+                code: 500, // استخدم 500 Internal Server Error
                 internalCode: 'SCRAP_NOTE_APPROVAL_FAILED'
             );
         }

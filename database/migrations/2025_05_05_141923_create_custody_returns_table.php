@@ -13,11 +13,11 @@ return new class extends Migration
             $table->id();
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade'); // صاحب العهدة (المستخدم العادي)
             $table->date('return_date');
-            $table->text('notes')->nullable();
+            $table->string('serial_number')->unique();
             $table->string('status')->default('pending'); // pending, processing, completed, cancelled
-
-            $table->foreignId('processed_by_warehouse_keeper_id')->nullable()->constrained('warehouse_keepers')->onDelete('set null'); // أمين المستودع
-            $table->timestamp('processed_at')->nullable();
+//            $table->foreignId('processed_by_warehouse_keeper_id')->nullable()->constrained('warehouse_keepers')->onDelete('set null'); // أمين المستودع
+//            $table->timestamp('processed_at')->nullable();
+            $table->text('notes')->nullable();
             $table->timestamps();
         });
     }

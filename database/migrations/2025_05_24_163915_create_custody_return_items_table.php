@@ -18,9 +18,9 @@ return new class extends Migration
             $table->decimal('returned_quantity', 10, 2); // الكمية المرتجعة
             $table->decimal('returned_quantity_accepted', 10, 2)->default(0);
             $table->foreignId('warehouse_id')->constrained('warehouses')->onDelete('restrict'); // المستودع الذي سيتم الإرجاع إليه
-            // إضافة location_id كـ Foreign Key، ويمكن أن يكون nullable في البداية
-            // لأنه لا يتم تعيينه إلا عند معالجة أمين المستودع.
-            $table->foreignId('location_id')->nullable()->constrained('locations')->onDelete('set null')->after('warehouse_id');
+//             إضافة location_id كـ Foreign Key، ويمكن أن يكون nullable في البداية
+//             لأنه لا يتم تعيينه إلا عند معالجة أمين المستودع.
+//            $table->foreignId('location_id')->nullable()->constrained('locations')->onDelete('set null')->after('warehouse_id');
             $table->text('user_notes')->nullable(); // ملاحظات المستخدم عن حالة الغرض
             $table->string('warehouse_manager_status')->default('pending_review'); // pending_review, accepted, rejected, damaged, missing
             $table->text('warehouse_manager_notes')->nullable(); // ملاحظات أمين المستودع

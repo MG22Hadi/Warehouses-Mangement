@@ -58,8 +58,6 @@ class WarehouseKeeperController extends Controller
                 'gender'       => 'sometimes|nullable|string',
                 'address'      => 'sometimes|nullable|string',
                 'birth_date'   => 'sometimes|nullable|date',
-                'facebook_url'  => 'sometimes|nullable|url',
-                'instagram_url' => 'sometimes|nullable|url',
             ]);
 
             if ($validator->fails()) {

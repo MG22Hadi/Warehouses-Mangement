@@ -12,6 +12,7 @@ return new class extends Migration
             $table->id();
             $table->string('name')->unique();
             $table->string('location');
+            $table->foreignId('warehouse_keeper_id')->constrained('warehouse_keepers')->cascadeOnDelete(); // ✅ نربط المستودع مع الأمين
             $table->timestamps();
         });
     }

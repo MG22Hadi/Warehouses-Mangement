@@ -13,9 +13,8 @@ return new class extends Migration
             $table->string('name');
             $table->string('code')->unique();
             $table->string('unit');
-            //$table->float('weight_per_unit', 10, 4)->nullable(); // وزن الوحدة الواحدة
-            //$table->float('volume_per_unit', 10, 4)->nullable(); // حجم الوحدة الواحدة
             $table->boolean('consumable')->default(false);
+            $table->float('danger_quantity', 10, 2)->nullable();
             $table->text('notes')->nullable();
             $table->timestamps();
         });

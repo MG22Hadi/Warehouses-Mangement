@@ -92,22 +92,32 @@ class CustodyController extends Controller
         $user = $request->user();
 
         try {
-            $custody = Custody::with('items.product')
-                ->where('id', $custodyId)
-                //->where('user_id', $user->id) // تأكد من أن المستخدم المصادق عليه هو صاحب العهدة
-                ->get();
+            // تم تعديل الاستعلام هنا
+            $custody = Custody::with([
+                // تحميل العناصر ومنتجاتها (كما كان في السابق)
+                'items.product',
 
-            if ($custody->isEmpty()) {
-                return $this->notFoundResponse('العهدة غير موجودة أو لا تملك صلاحية عرضهاn.');
+                // جديد: تحميل تفاصيل الإرجاع لكل عنصر
+                // سيتم تحميل تفاصيل طلب الإرجاع الرئيسي (custodyReturn) والمستودع لكل عنصر مُرجع
+                'items.returnItems.custodyReturn',
+                'items.returnItems.warehouse'
+            ])
+                ->where('id', $custodyId)
+                //->where('user_id', $user->id) // يمكنك تفعيل هذا السطر للتحقق من الصلاحية
+                ->first(); // استخدم first() بدلاً من get() لأنك تتوقع نتيجة واحدة
+
+            if (!$custody) {
+                return $this->notFoundResponse('العهدة غير موجودة أو لا تملك صلاحية عرضها.');
             }
 
             return $this->successResponse($custody, 'تم استرداد العهدة بنجاح.');
 
         } catch (\Throwable $e) {
-            return $this->notFoundResponse('العهدة غير موجودة أو لا تملك صلاحية عرضها.');
+            // يمكنك إضافة تسجيل للخطأ هنا لمساعدتك في المستقبل
+            // Log::error($e->getMessage());
+            return $this->errorResponse('حدث خطأ أثناء استرداد العهدة.', 500);
         }
     }
-
     // نجيب كل العهد الموجودة في جدول العهد يعني لكل المستخدمين
     public function showAll(Request $request)
     {
