@@ -242,4 +242,19 @@ class LocationController extends Controller
         return $this->successResponse($all, 'جميع المواد الغير موزعة');
     }
 
+
+    public function show($id)
+    {
+        try {
+            $location = Location::with('warehouse')->findOrFail($id);
+
+            return $this->successResponse($location, 'تم استرجاع الموقع بنجاح');
+
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return $this->notFoundResponse('الموقع غير موجود');
+        } catch (\Exception $e) {
+            return $this->errorResponse('حدث خطأ أثناء استرجاع الموقع: ' . $e->getMessage(), 500);
+        }
+    }
+
 }

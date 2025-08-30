@@ -11,6 +11,8 @@ use App\Models\ProductMovement;
 use App\Models\ScrapNote;
 use App\Models\ScrappedMaterial;
 use App\Models\Stock;
+use App\Models\WarehouseKeeper;
+use App\Services\NotificationService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -22,6 +24,14 @@ class ScrapNoteController extends Controller
 {
     //
     use ApiResponse;
+
+    protected $notificationService;
+
+    public function __construct(NotificationService $notificationService)
+    {
+        $this->notificationService = $notificationService;
+    }
+
     // إظهار كل المذكرات
     public function index()
     {
@@ -37,8 +47,12 @@ class ScrapNoteController extends Controller
         }
     }
 
+
+
     public function store(Request $request)
     {
+        $user = Auth::user();
+
         $validator = Validator::make($request->all(), [
             'date' => 'required|date',
             'reason' => 'nullable|string|max:1000',
@@ -85,6 +99,52 @@ class ScrapNoteController extends Controller
                 }
             });
 
+            try {
+                //  إيجاد المدير عبر العلاقات: أمين المستودع -> مستودع -> قسم -> مدير
+                $warehouseKeeper = WarehouseKeeper::where('id', $user->id)->firstOrFail();
+
+                $warehouseId = $request->warehouse_id ?? null;
+
+                $warehouse = $warehouseKeeper->warehouse()
+                    ->when($warehouseId, function ($q) use ($warehouseId) {
+                        $q->where('id', $warehouseId);
+                    })
+                    ->first();
+                if (!$warehouse) {
+                    throw new \Exception('لا يوجد مستودع مرتبط بأمين المستودع.');
+                }
+
+                $department = $warehouse->department;
+                if (!$department) {
+                    throw new \Exception('لا يوجد قسم مرتبط بالمستودع.');
+                }
+
+                $manager = $department->manager;
+                if (!$manager) {
+                    throw new \Exception('لا يوجد مدير مرتبط بالقسم.');
+                }
+
+            } catch (\Exception $e) {
+                return $this->errorResponse(
+                    'فشل في تحديد مدير القسم المرتبط بأمين المستودع: ' . $e->getMessage(),
+                    404,
+                    [],
+                    'MANAGER_NOT_FOUND'
+                );
+            }
+
+
+            // 🔔 إشعار المدير
+            if ($manager && isset($this->notificationService)) {
+                $this->notificationService->notify(
+                    $manager,
+                    'طلب إتلاف مواد جديد',
+                    'يوجد طلب إتلاف مواد جديد بانتظار المراجعة (رقم: ' . $scrapNote->serial_number . ')',
+                    'scrap-note',
+                    $scrapNote->id
+                );
+            }
+
             return $this->successResponse(
                 [
                     'scrap_note' => $scrapNote->load('materials'),
@@ -103,12 +163,65 @@ class ScrapNoteController extends Controller
         }
     }
 
+
+
+
+    /**  ابروف قبل اللوكيشن
+    public function approve($id)
+    {
+        try {
+            DB::transaction(function () use ($id) {
+                $scrapNote = ScrapNote::with('materials')->findOrFail($id);
+
+                if ($scrapNote->status != ScrapNote::STATUS_PENDING) {
+                    throw new \Exception('لا يمكن الموافقة على مذكرة غير معلقة');
+                }
+
+                // التحقق من توفر الكميات قبل التنقيص
+                foreach ($scrapNote->materials as $material) {
+                    $available = DB::table('stocks')
+                        ->where('product_id', $material->product_id)
+                        ->sum('quantity');
+
+                    if ($available < $material->quantity) {
+                        throw new \Exception("الكمية غير متوفرة للمنتج {$material->product_id}");
+                    }
+                }
+
+                // تنقيص الكميات
+                foreach ($scrapNote->materials as $material) {
+                    DB::table('stocks')
+                        ->where('product_id', $material->product_id)
+                        ->decrement('quantity', $material->quantity);
+                }
+
+                $scrapNote->update([
+                    'status' => ScrapNote::STATUS_APPROVED,
+                    'approved_by' =>null /*auth()->id(),
+                    'approved_at' => now(),
+                ]);
+            });
+
+            return $this->successMessage(
+               'تمت الموافقة على مذكرة التلف وتنقيص الكميات بنجاح'
+            );
+
+        } catch (\Exception $e) {
+
+            return $this->errorResponse(
+                message:  'فشل في الموافقة على المذكرة' . $e->getMessage(),
+                code: 422,
+                internalCode: 'SCRAP_NOTE_CREATION_FAILED'
+            );
+        }
+    }**/
+
     public function approve(Request $request, $id)
     {
-        $user = $request->user();
-        $locationMessages = [];
+        $user = Auth::user();
+
         try {
-            DB::transaction(function () use ($id, $request, $user,  &$locationMessages) {
+            DB::transaction(function () use ($id, $request, $user) {
                 $scrapNote = ScrapNote::with('materials.product')->findOrFail($id);
 
                 if ($scrapNote->status != ScrapNote::STATUS_PENDING) {
@@ -139,6 +252,7 @@ class ScrapNoteController extends Controller
 
 
                     $quantityToScrap = $material->quantity; // <--- استخدام الكمية الأصلية التي طلبها أمين المستودع
+                    $locationId = $material->location_id;   // <--- استخدام الـ location_id المخزن أصلاً
 
                     // إذا كانت الكمية الأصلية صفر أو أقل، لا نقوم بأي خصم أو حركة لهذه المادة
                     if ($quantityToScrap <= 0) {
@@ -186,10 +300,23 @@ class ScrapNoteController extends Controller
                     'approved_by' => $user->id,
                     'approved_at' => now(),
                 ]);
+
+                // 🔔 إشعار للـ warehouseKeeper (المنشئ)
+                $creator =$scrapNote->createdBy;
+                if ($creator) {
+                    $this->notificationService->notify(
+                        $creator,
+                        'الموافقة على طلب إتلاف مواد',
+                        'تمت الموافقة على طلب إتلاف مواد الخاص بك (رقم: ' .$scrapNote->serial_number . ').',
+                        'scrap-note',
+                        $scrapNote->id
+                    );
+                }
+
             });
 
             return $this->successResponse(
-               $locationMessages,'تمت الموافقة على مذكرة التلف وتنقيص الكميات بنجاح.'
+                null,'تمت الموافقة على مذكرة التلف وتنقيص الكميات بنجاح وإرسال إشعار لأمين المستودع .'
             );
         } catch (\Throwable $e) { // استخدام Throwable لأخطاء أوسع
             DB::rollBack();
@@ -233,6 +360,18 @@ class ScrapNoteController extends Controller
                 'approved_by' =>null /*auth()->id()*/,
                 'approved_at' => now(),
             ]);
+
+            // 🔔 إشعار للـ warehouseKeeper (المنشئ)
+            $creator =$scrapNote->createdBy;
+            if ($creator) {
+                $this->notificationService->notify(
+                    $creator,
+                    'رفض طلب إتلاف مواد',
+                    'عذراً تم رفض طلب إتلاف مواد الخاص بك (رقم: ' .$scrapNote->serial_number . ').',
+                    'scrap-note',
+                    $scrapNote->id
+                );
+            }
 
             return $this->successMessage( 'تم رفض مذكرة التلف بنجاح');
 

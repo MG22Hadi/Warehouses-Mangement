@@ -16,6 +16,7 @@ return new class extends Migration
             $table->boolean('consumable')->default(false);
             $table->float('danger_quantity', 10, 2)->nullable();
             $table->text('notes')->nullable();
+            $table->string('image_path')->nullable();
             $table->timestamps();
         });
     }

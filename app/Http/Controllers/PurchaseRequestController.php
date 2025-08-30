@@ -57,8 +57,9 @@ class PurchaseRequestController extends Controller
 
     public function store(Request $request)
     {
+        $user = Auth::user();
         $validator = Validator::make($request->all(), [
-            'created_by' => 'required|exists:warehouse_keepers,id', // ⚠️ يجب أن يكون ID أمين المستودع موجوداً
+            //'created_by' => 'required|exists:warehouse_keepers,id', // ⚠️ يجب أن يكون ID أمين المستودع موجوداً
             'supplier_id' => 'required|exists:suppliers,id',
             'request_date' => 'required|date',
             'notes' => 'nullable|string',
@@ -72,15 +73,50 @@ class PurchaseRequestController extends Controller
         }
 
         // ⚠️ الخطوة الحاسمة: جلب المدير عبر العلاقات
+//        try {
+//            // نجد أمين المستودع بناءً على ID المرسل في الطلب
+//            $warehouseKeeper = WarehouseKeeper::findOrFail($request->created_by);
+//
+//            // نصل إلى المدير عبر سلسلة العلاقات: أمين المستودع -> المستودع -> القسم -> المدير
+//            $managerId = $warehouseKeeper->warehouse->department->manager_id;
+//
+//        } catch (Exception $e) {
+//            // هذا الخطأ سيحدث إذا كانت إحدى العلاقات غير موجودة (مثل warehouse_id في جدول warehouse_keepers فارغ)
+//            return $this->errorResponse(
+//                'فشل في تحديد مدير القسم المرتبط بأمين المستودع: ' . $e->getMessage(),
+//                404,
+//                [],
+//                'MANAGER_NOT_FOUND'
+//            );
+//        }
+        //TODO
         try {
-            // نجد أمين المستودع بناءً على ID المرسل في الطلب
-            $warehouseKeeper = WarehouseKeeper::findOrFail($request->created_by);
+            $warehouseKeeper = WarehouseKeeper::where('id', $user->id)->firstOrFail();
 
-            // نصل إلى المدير عبر سلسلة العلاقات: أمين المستودع -> المستودع -> القسم -> المدير
-            $managerId = $warehouseKeeper->warehouse->department->manager_id;
+            $warehouseId = $request->warehouse_id ?? null;
 
-        } catch (Exception $e) {
-            // هذا الخطأ سيحدث إذا كانت إحدى العلاقات غير موجودة (مثل warehouse_id في جدول warehouse_keepers فارغ)
+            $warehouse = $warehouseKeeper->warehouse()
+                ->when($warehouseId, function ($q) use ($warehouseId) {
+                    $q->where('id', $warehouseId);
+                })
+                ->first();
+            if (!$warehouse) {
+                throw new \Exception('لا يوجد مستودع مرتبط بأمين المستودع.');
+            }
+
+            $department = $warehouse->department;
+            if (!$department) {
+                throw new \Exception('لا يوجد قسم مرتبط بالمستودع.');
+            }
+
+            $manager = $department->manager;
+            if (!$manager) {
+                throw new \Exception('لا يوجد مدير مرتبط بالقسم.');
+            }
+
+            $managerId = $manager->id;
+
+        } catch (\Exception $e) {
             return $this->errorResponse(
                 'فشل في تحديد مدير القسم المرتبط بأمين المستودع: ' . $e->getMessage(),
                 404,
@@ -89,11 +125,13 @@ class PurchaseRequestController extends Controller
             );
         }
 
+
         try {
             DB::transaction(function () use ($request, $managerId, &$purchaseRequest) {
                 $purchaseRequest = PurchaseRequest::create([
-                    'created_by' => $request->created_by,
-                    'manager_id' => $managerId,
+                    'created_by' =>Auth::user()->id,
+                //'manager_id' => $managerId,
+                    'manager_id' => null,
                     'supplier_id' => $request->supplier_id,
                     'serial_number' => $this->generateSerialNumber(),
                     'status' => 'pending',
@@ -114,7 +152,7 @@ class PurchaseRequestController extends Controller
             $purchaseRequest->load(['createdBy.warehouse.department.manager', 'supplier', 'items.product']);
 
             // 🔔 إشعار للمدير المحدد
-            $manager = $purchaseRequest->manager;
+            //$manager = $purchaseRequest->manager;
             if ($manager) {
                 // تأكد من أن notificationService معرف ومتاح
                 if (isset($this->notificationService)) {

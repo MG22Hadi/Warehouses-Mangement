@@ -11,6 +11,7 @@ use App\Traits\ApiResponse;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class ProductController extends Controller
 {
@@ -48,6 +49,59 @@ class ProductController extends Controller
     }
 
 
+//    public function store(Request $request)
+//    {
+//        $validated = $request->validate([
+//            'name' => 'required|string|max:255',
+//            'code' => 'required|string|max:255|unique:products,code',
+//            'unit' => 'required|string|max:50',
+//            'consumable' => 'required|boolean',
+//            'notes' => 'nullable|string',
+//            'warehouse_id' => 'required|exists:warehouses,id',
+//            'image' => 'nullable|image|mimes:jpeg,png,jpg',
+//        ]);
+//
+//        DB::beginTransaction();
+//
+//        try {
+//            $productData = [
+//                'name' => $validated['name'],
+//                'code' => $validated['code'],
+//                'unit' => $validated['unit'],
+//                'consumable' => $validated['consumable'],
+//                'notes' => $validated['notes'] ?? null,
+//            ];
+//
+//            // تحديد مسار الصورة الافتراضي قبل التحقق
+//            $imagePath = 'images/default.jpg';
+//
+//            // حفظ الصورة إذا وجدت
+//            if ($request->hasFile('image')) {
+//                $imagePath = $request->file('image')->store('products', 'public');
+//                $productData['image_path'] = $imagePath;
+//            }
+//
+//            $product = Product::create($productData);
+//
+//            // إضافة لسطر المخزون بكمية صفر
+//            $stock = Stock::create([
+//                'warehouse_id' => $validated['warehouse_id'],
+//                'product_id' => $product->id,
+//                'quantity' => 0,
+//            ]);
+//
+//            DB::commit();
+//
+//            return $this->successResponse([
+//                'product' => $product->load('stocks'),
+//                'image_path' => $product->image_path, // إرجاع رابط الصورة
+//            ], 'تم إنشاء المنتج وربطه بالمستودع بنجاح', 201);
+//
+//        } catch (\Exception $e) {
+//            DB::rollBack();
+//            return $this->errorResponse('فشل في إنشاء المنتج: ' . $e->getMessage(), 500);
+//        }
+//    }
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -56,19 +110,32 @@ class ProductController extends Controller
             'unit' => 'required|string|max:50',
             'consumable' => 'required|boolean',
             'notes' => 'nullable|string',
-            'warehouse_id' => 'required|exists:warehouses,id'
+            'warehouse_id' => 'required|exists:warehouses,id',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg',
         ]);
 
         DB::beginTransaction();
 
         try {
-            $product = Product::create([
+            $productData = [
                 'name' => $validated['name'],
                 'code' => $validated['code'],
                 'unit' => $validated['unit'],
                 'consumable' => $validated['consumable'],
                 'notes' => $validated['notes'] ?? null,
-            ]);
+            ];
+
+            // تحديد مسار الصورة الافتراضي قبل التحقق
+            $imagePath = 'images/default.jpg';
+
+            // حفظ الصورة إذا وجدت
+            if ($request->hasFile('image')) {
+                $imagePath = $request->file('image')->store('products', 'public');
+            }
+
+            $productData['image_path'] = $imagePath;
+
+            $product = Product::create($productData);
 
             // إضافة لسطر المخزون بكمية صفر
             $stock = Stock::create([
@@ -79,9 +146,10 @@ class ProductController extends Controller
 
             DB::commit();
 
+            // استخدام التابع `getImageUrlAttribute` للحصول على الرابط الكامل للصورة في الرد
             return $this->successResponse([
-                'product' => $product,
-                'stock' => $stock,
+                'product' => $product->load('stocks'),
+                'image_url' => $product->image_url, // هنا نستخدم التابع
             ], 'تم إنشاء المنتج وربطه بالمستودع بنجاح', 201);
 
         } catch (\Exception $e) {
@@ -101,6 +169,7 @@ class ProductController extends Controller
                 'consumable' => 'boolean',
                 'notes' => 'nullable|string',
                 'warehouse_id' => 'required|exists:warehouses,id',
+                'image' => 'nullable|image|mimes:jpeg,png,jpg',
             ]);
 
             $product = Product::find($id);
@@ -109,10 +178,34 @@ class ProductController extends Controller
                 return $this->notFoundResponse('المادة غير موجودة');
             }
 
-            $product->update($validated);
+            $updateData = [
+                'name' => $validated['name'],
+                'code' => $validated['code'],
+                'unit' => $validated['unit'],
+                'consumable' => $validated['consumable'],
+                'notes' => $validated['notes'] ?? null,
+            ];
+
+            // تحديث الصورة إذا وجدت
+            if ($request->hasFile('image')) {
+                // حذف الصورة القديمة إذا كانت موجودة
+                if ($product->image_path && Storage::disk('public')->exists($product->image_path)) {
+                    Storage::disk('public')->delete($product->image_path);
+                }
+
+                $imagePath = $request->file('image')->store('products', 'public');
+                $updateData['image_path'] = $imagePath;
+            }
+
+            $product->update($updateData);
 
             DB::commit();
-            return $this->successResponse($product, 'تم تعديل المادة بنجاح',201);
+            return $this->successResponse([
+                    'product' => $product,
+                    'image_url' => $product->image_url
+                ],
+                'تم تعديل المادة بنجاح',
+                201);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return $this->validationErrorResponse($e->validator);
         } catch (\Throwable $e) {
@@ -151,6 +244,54 @@ class ProductController extends Controller
         }
     }**/
 
+
+//ديستروي قبل الصور
+//    public function destroy($id)
+//    {
+//        DB::beginTransaction();
+//
+//        try {
+//            // التأكد من وجود المنتج
+//            $product = Product::findOrFail($id);
+//
+//            // 1. التحقق من وجود كميات للمنتج في المواقع (product_locations)
+//            if (ProductLocation::where('product_id', $product->id)->where('quantity', '>', 0)->exists()) {
+//                DB::rollBack();
+//                return $this->errorResponse('لا يمكن حذف المنتج. ما زالت توجد كميات منه في مواقع تخزين محددة.', 409, 'PRODUCT_HAS_STOCK_IN_LOCATIONS'); // 409 Conflict
+//            }
+//
+//            // 2. التحقق من وجود كميات للمنتج في المخزون العام (stocks)
+//            // هذا التحقق قد يكون زائداً إذا كان ProductLocation هو المصدر الوحيد للكميات التفصيلية
+//            // ولكن للحماية الإضافية يمكن تركه.
+//            if (Stock::where('product_id', $product->id)->where('quantity', '>', 0)->exists()) {
+//                DB::rollBack();
+//                return $this->errorResponse('لا يمكن حذف المنتج. ما زالت توجد كميات منه في المخزون العام.', 409, 'PRODUCT_HAS_GENERAL_STOCK'); // 409 Conflict
+//            }
+//
+//            // إذا لم تكن هناك كميات متبقية، يمكن حذف السجلات المرتبطة
+//            // حذف سجلات ProductLocation المرتبطة بهذا المنتج (الكميات الصفرية)
+//            ProductLocation::where('product_id', $product->id)->delete();
+//
+//            // حذف سجلات Stock المرتبطة بهذا المنتج (الكميات الصفرية)
+//            Stock::where('product_id', $product->id)->delete();
+//
+//            // حذف المنتج
+//            $product->delete();
+//
+//            DB::commit();
+//
+//            return $this->successResponse(null,'تم حذف المنتج بنجاح.',);
+//
+//        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+//            DB::rollBack();
+//            return $this->notFoundResponse('المنتج غير موجود.'); // استخدام notFoundResponse لرسائل 404
+//
+//        } catch (\Exception $e) {
+//            DB::rollBack();
+//            return $this->errorResponse('فشل في حذف المنتج: ' . $e->getMessage(), 500, 'PRODUCT_DELETION_FAILED');
+//        }
+//    }
+
     public function destroy($id)
     {
         DB::beginTransaction();
@@ -166,11 +307,14 @@ class ProductController extends Controller
             }
 
             // 2. التحقق من وجود كميات للمنتج في المخزون العام (stocks)
-            // هذا التحقق قد يكون زائداً إذا كان ProductLocation هو المصدر الوحيد للكميات التفصيلية
-            // ولكن للحماية الإضافية يمكن تركه.
             if (Stock::where('product_id', $product->id)->where('quantity', '>', 0)->exists()) {
                 DB::rollBack();
                 return $this->errorResponse('لا يمكن حذف المنتج. ما زالت توجد كميات منه في المخزون العام.', 409, 'PRODUCT_HAS_GENERAL_STOCK'); // 409 Conflict
+            }
+
+            // حذف ملف الصورة المرتبط بالمنتج إذا كان موجوداً
+            if ($product->image_path && $product->image_path !== 'images/default.jpg') {
+                Storage::disk('public')->delete($product->image_path);
             }
 
             // إذا لم تكن هناك كميات متبقية، يمكن حذف السجلات المرتبطة
@@ -185,7 +329,7 @@ class ProductController extends Controller
 
             DB::commit();
 
-            return $this->successResponse(null,'تم حذف المنتج بنجاح.',);
+            return $this->successResponse(null,'تم حذف المنتج بنجاح.');
 
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             DB::rollBack();
@@ -227,7 +371,21 @@ class ProductController extends Controller
                return $this->errorResponse(400,'يرجى استخدام فلتر واحد فقط في كل طلب');
            }
 
-           $products=$query->orderBy('created_at','desc')->get();
+           $products=$query->orderBy('created_at','desc')->get()
+               ->map(function ($product) {
+                   return [
+                       'id' => $product->id,
+                       'name' => $product->name,
+                       'code' => $product->code,
+                       'unit' => $product->unit,
+                       'consumable' => $product->consumable,
+                       'notes' => $product->notes,
+                       'image_url' => $product->image_url,
+                       'stocks' => $product->stocks,
+                       'created_at' => $product->created_at,
+                       'updated_at' => $product->updated_at
+                   ];
+               });
            $count= count($products);
 
            return $this->successResponse(

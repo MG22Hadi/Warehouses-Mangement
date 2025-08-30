@@ -19,7 +19,7 @@ class Warehouse extends Model
         return $this->hasOne(Department::class, 'warehouse_id', 'id');
     }
 
-    public function warehouseKeepers()
+    public function warehouseKeeper()
     {
         return $this->belongsTo(WarehouseKeeper::class);
     }
