@@ -166,26 +166,25 @@ class CustodyReturnController extends Controller
             // إدخال جماعي للعناصر
             CustodyReturnItem::insert($returnItemsToInsert);
 
-            DB::commit();
 
             // --- 3. تجهيز وإرسال الاستجابة الناجحة ---
             $custodyReturn->load('items.custodyItem.product', 'items.warehouse', 'user');
-
-            $manager = $user->department->manager;
-            if (!$manager) {
-                throw new \Exception('لا يوجد مدير مرتبط بالقسم.');
-            }
-            // 🔔 إشعار المدير
-            if ($manager && isset($this->notificationService)) {
-                $this->notificationService->notify(
-                    $manager,
-                    'طلب إتلاف مواد جديد',
-                    'يوجد طلب إتلاف مواد جديد بانتظار المراجعة (رقم: ' . $serial . ')',
-                    'scrap-note',
-                    $serial
-                );
-            }
-
+//
+//            $manager = $user->department->manager;
+//            if (!$manager) {
+//                throw new \Exception('لا يوجد مدير مرتبط بالقسم.');
+//            }
+//            // 🔔 إشعار المدير
+//            if ($manager && isset($this->notificationService)) {
+//                $this->notificationService->notify(
+//                    $manager,
+//                    'طلب إتلاف مواد جديد',
+//                    'يوجد طلب إتلاف مواد جديد بانتظار المراجعة (رقم: ' . $serial . ')',
+//                    'scrap-note',
+//                    $serial
+//                );
+//            }
+            DB::commit();
             return $this->successResponse(
                 $custodyReturn,
                 'تم إنشاء طلب إرجاع العهدة بنجاح. بانتظار مراجعة أمين المستودع.'

@@ -212,4 +212,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('products/monthlyBalances', [ProductMovementController::class, 'getMonthlyProductBalances']);
 
 
+    Route::get('/managers',[DepartmentController::class,'indexManager']);
+
+
 });

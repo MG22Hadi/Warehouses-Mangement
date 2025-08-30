@@ -108,4 +108,14 @@ class DepartmentController extends Controller
             return $this->successResponse(null,'تم حذف القسم بنجاح');
         });
     }
+
+    public function indexManager()
+    {
+        try {
+            $departments = Manager::get();
+            return $this->successResponse($departments, 'تم جلب المدراء بنجاح');
+        } catch (\Throwable $e) {
+            return $this->handleExceptionResponse($e, 'فشل في جلب المدراء');
+        }
+    }
 }
