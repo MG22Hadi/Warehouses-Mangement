@@ -11,6 +11,7 @@ use App\Models\Product;
 use App\Models\ProductLocation;
 use App\Models\ProductMovement;
 use App\Models\Stock;
+use App\Services\NotificationService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -21,6 +22,12 @@ use Illuminate\Validation\Rule;
 class CustodyReturnController extends Controller
 {
     use ApiResponse;
+    protected $notificationService;
+
+    public function __construct(NotificationService $notificationService)
+    {
+        $this->notificationService = $notificationService;
+    }
 
     public function createReturnRequest(Request $request)
     {
@@ -131,11 +138,12 @@ class CustodyReturnController extends Controller
         DB::beginTransaction();
 
         try {
+            $serial =$this->generateSerialNumber();
             // إنشاء طلب الإرجاع الرئيسي
             $custodyReturn = CustodyReturn::create([
                 'user_id'       => $user->id,
                 'return_date'   => $request->return_date,
-                'serial_number' => $this->generateSerialNumber(),
+                'serial_number' => $serial,
                 'notes'         => $request->notes,
                 'status'        => 'pending',
             ]);
@@ -162,6 +170,21 @@ class CustodyReturnController extends Controller
 
             // --- 3. تجهيز وإرسال الاستجابة الناجحة ---
             $custodyReturn->load('items.custodyItem.product', 'items.warehouse', 'user');
+
+            $manager = $user->department->manager;
+            if (!$manager) {
+                throw new \Exception('لا يوجد مدير مرتبط بالقسم.');
+            }
+            // 🔔 إشعار المدير
+            if ($manager && isset($this->notificationService)) {
+                $this->notificationService->notify(
+                    $manager,
+                    'طلب إتلاف مواد جديد',
+                    'يوجد طلب إتلاف مواد جديد بانتظار المراجعة (رقم: ' . $serial . ')',
+                    'scrap-note',
+                    $serial
+                );
+            }
 
             return $this->successResponse(
                 $custodyReturn,

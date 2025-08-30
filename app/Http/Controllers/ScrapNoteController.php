@@ -164,58 +164,6 @@ class ScrapNoteController extends Controller
     }
 
 
-
-
-    /**  ابروف قبل اللوكيشن
-    public function approve($id)
-    {
-        try {
-            DB::transaction(function () use ($id) {
-                $scrapNote = ScrapNote::with('materials')->findOrFail($id);
-
-                if ($scrapNote->status != ScrapNote::STATUS_PENDING) {
-                    throw new \Exception('لا يمكن الموافقة على مذكرة غير معلقة');
-                }
-
-                // التحقق من توفر الكميات قبل التنقيص
-                foreach ($scrapNote->materials as $material) {
-                    $available = DB::table('stocks')
-                        ->where('product_id', $material->product_id)
-                        ->sum('quantity');
-
-                    if ($available < $material->quantity) {
-                        throw new \Exception("الكمية غير متوفرة للمنتج {$material->product_id}");
-                    }
-                }
-
-                // تنقيص الكميات
-                foreach ($scrapNote->materials as $material) {
-                    DB::table('stocks')
-                        ->where('product_id', $material->product_id)
-                        ->decrement('quantity', $material->quantity);
-                }
-
-                $scrapNote->update([
-                    'status' => ScrapNote::STATUS_APPROVED,
-                    'approved_by' =>null /*auth()->id(),
-                    'approved_at' => now(),
-                ]);
-            });
-
-            return $this->successMessage(
-               'تمت الموافقة على مذكرة التلف وتنقيص الكميات بنجاح'
-            );
-
-        } catch (\Exception $e) {
-
-            return $this->errorResponse(
-                message:  'فشل في الموافقة على المذكرة' . $e->getMessage(),
-                code: 422,
-                internalCode: 'SCRAP_NOTE_CREATION_FAILED'
-            );
-        }
-    }**/
-
     public function approve(Request $request, $id)
     {
         $user = Auth::user();
