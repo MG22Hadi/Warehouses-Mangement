@@ -30,22 +30,14 @@ class CustodyItem extends Model
         return $this->belongsTo(ExitNote::class);
     }
 
-    /****
-     *
-     */
+
     public function room()
     {
         return $this->belongsTo(Room::class);
     }
 
-
-//    public function returns()
-//    {
-//        return $this->hasMany(CustodyReturn::class);
-//    }
-
     public function returnItems()
     {
-        return $this->hasMany(CustodyReturnItem::class);
+        return $this->hasMany(CustodyReturnItem::class, 'custody_item_id');
     }
 }

@@ -6,28 +6,14 @@ use Illuminate\Database\Eloquent\Model;
 
 class CustodyReturn extends Model
 {
-//    protected $fillable = [
-//        'custody_item_id',
-//        'quantity',
-//        'date',
-//        'notes'
-//    ];
-//
-//    protected $casts = [
-//        'date' => 'date'
-//    ];
-//
-//    public function custodyItem()
-//    {
-//        return $this->belongsTo(CustodyItem::class);
-//    }
 
     protected $fillable = [
         'user_id',
         'return_date',
         'notes',
         'status',
-        'processed_by_warehouse_keeper_id', // التعديل هنا
+        'serial_number',
+        'warehouse_keeper_id',
         'processed_at',
     ];
 
@@ -42,11 +28,11 @@ class CustodyReturn extends Model
         return $this->belongsTo(User::class); // هدا هو المستخدم صاحب العهدة
     }
 
-    //  العلاقة تشير إلى WarehouseKeeper
-    public function processor()
-    {
-        return $this->belongsTo(WarehouseKeeper::class, 'processed_by_warehouse_keeper_id');
-    }
+//    //  العلاقة تشير إلى WarehouseKeeper
+//    public function warehouseKeeper()
+//    {
+//        return $this->belongsTo(WarehouseKeeper::class, 'warehouse_keeper_id');
+//    }
 
     public function items()
     {
