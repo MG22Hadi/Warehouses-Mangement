@@ -35,12 +35,9 @@ Route::get('/products',[ProductController::class,'index']);
 Route::get('/products/search', [ProductController::class, 'search']);
 Route::get('/products/{id}/details', [ProductController::class, 'details']);
 
-
-Route::middleware('auth:sanctum')->group(function () {
-    Route::post('/logout', [AuthController::class, 'logout']);
+Route::middleware('warehouse-keeper-api')->group(function () {
 
     //ENTRY NOTE
-
     Route::get('/allEntryNote',[EntryNoteController::class,'index']);
     Route::get('/EntryNote/{id}/details',[EntryNoteController::class,'show']);
     Route::post('/entryNote',[EntryNoteController::class,'store']);
@@ -53,9 +50,52 @@ Route::middleware('auth:sanctum')->group(function () {
     //    WAREHOUSE
     Route::post('/warehouses/store', [WarehouseController::class, 'store']);
     Route::put('/warehouses/update/{id}', [WarehouseController::class, 'update']);
-    Route::delete('/warehouses/destroy/{id}', [WarehouseController::class, 'destroy']);
+//    Route::delete('/warehouses/destroy/{id}', [WarehouseController::class, 'destroy']);
     Route::get('/warehouses/index', [WarehouseController::class, 'index']);
     Route::get('warehouses/show/{id}', [WarehouseController::class, 'show']);
+
+    //    PRODUCTS
+    Route::post('/products/store', [ProductController::class, 'store']);
+    Route::post('products/update/{id}', [ProductController::class, 'update']);
+    Route::delete('products/delete/{id}', [ProductController::class, 'destroy']);
+    Route::get('/products',[ProductController::class,'index']);
+    Route::get('products/show/{id}', [ProductController::class, 'show']);
+
+});
+
+Route::middleware('auth:manager-api')->group(function () {
+
+    Route::put('scrapNotes/{id}/approve', [ScrapNoteController::class, 'approve']);
+    Route::put('scrapNotes/{id}/reject', [ScrapNoteController::class, 'reject']);
+
+
+    Route::get('/M-Request/show/{id}',[MaterialRequestController::class,'showRequest']);
+    Route::put('/materialRequests/{id}/edit', [MaterialRequestController::class, 'editRequest']);
+    Route::put('/materialRequests/{id}/reject', [MaterialRequestController::class, 'rejectRequest']);
+    Route::put('/materialRequests/{id}/approve', [MaterialRequestController::class, 'approveRequest']);
+
+    Route::post('/custody-returns/items/{custodyReturnItemId}/process', [CustodyReturnController::class, 'processCustodyReturnItem']);
+    Route::get('/custody-returns/pending', [CustodyReturnController::class, 'pendingReturnRequests']);
+
+
+
+
+});
+
+Route::middleware('auth:user-api')->group(function () {
+
+
+});
+
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/logout', [AuthController::class, 'logout']);
+
+
+
+
+
+
+
 
 
     //    PRODUCTS
@@ -83,10 +123,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/MRequest',[MaterialRequestController::class,'store']);
     Route::get('/allRequestMaterial',[MaterialRequestController::class,'index']);
     Route::get('/pendingRequestMaterial',[MaterialRequestController::class,'pendingRequests']);
-    Route::get('/M-Request/show/{id}',[MaterialRequestController::class,'showRequest']);
-    Route::put('/materialRequests/{id}/edit', [MaterialRequestController::class, 'editRequest']);
-    Route::put('/materialRequests/{id}/reject', [MaterialRequestController::class, 'rejectRequest']);
-    Route::put('/materialRequests/{id}/approve', [MaterialRequestController::class, 'approveRequest']);
+
     Route::get('/material-requests/user/{userId}', [MaterialRequestController::class, 'userRequests']);
 
 
@@ -110,9 +147,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // return Custody
     // إنشاء طلب إرجاع جديد
     Route::post('/custody-returns', [CustodyReturnController::class, 'createReturnRequest']);
-    Route::post('/custody-returns/items/{custodyReturnItemId}/process', [CustodyReturnController::class, 'processCustodyReturnItem']);
     Route::get('/custody-returns', [CustodyReturnController::class, 'index']);
-    Route::get('/custody-returns/pending', [CustodyReturnController::class, 'pendingReturnRequests']);
     Route::get('/custody-returns/{id}', [CustodyReturnController::class, 'show']);
     Route::get('/my-custody-returns', [CustodyReturnController::class, 'myReturnRequests']);
 
@@ -152,8 +187,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/allScrapNote',[ScrapNoteController::class,'index']);
     Route::get('/scrapNote/{id}/details',[ScrapNoteController::class,'show']);
     Route::post('/scrapNote/store', [ScrapNoteController::class, 'store']);
-    Route::put('scrapNotes/{id}/approve', [ScrapNoteController::class, 'approve']);
-    Route::put('scrapNotes/{id}/reject', [ScrapNoteController::class, 'reject']);
 
     // InstallationReport
     Route::get('/allInstallationReport',[InstallationReportController::class,'index']);
