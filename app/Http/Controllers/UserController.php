@@ -42,8 +42,8 @@ class UserController extends Controller
                 'gender'       => 'sometimes|nullable|string',
                 'address'      => 'sometimes|nullable|string',
                 'birth_date'   => 'sometimes|nullable|date',
-                'facebook_url'  => 'sometimes|nullable|url',
-                'instagram_url' => 'sometimes|nullable|url',
+                'facebook_url'  => 'sometimes|nullable|string',
+                'instagram_url' => 'sometimes|nullable|string',
 
             ]);
 
