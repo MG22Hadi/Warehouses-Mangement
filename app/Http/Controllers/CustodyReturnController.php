@@ -169,21 +169,21 @@ class CustodyReturnController extends Controller
 
             // --- 3. تجهيز وإرسال الاستجابة الناجحة ---
             $custodyReturn->load('items.custodyItem.product', 'items.warehouse', 'user');
-//
-//            $manager = $user->department->manager;
-//            if (!$manager) {
-//                throw new \Exception('لا يوجد مدير مرتبط بالقسم.');
-//            }
-//            // 🔔 إشعار المدير
-//            if ($manager && isset($this->notificationService)) {
-//                $this->notificationService->notify(
-//                    $manager,
-//                    'طلب إتلاف مواد جديد',
-//                    'يوجد طلب إتلاف مواد جديد بانتظار المراجعة (رقم: ' . $serial . ')',
-//                    'scrap-note',
-//                    $serial
-//                );
-//            }
+
+            $manager = $user->department->manager;
+            if (!$manager) {
+                throw new \Exception('لا يوجد مدير مرتبط بالقسم.');
+            }
+            // 🔔 إشعار المدير
+            if ($manager && isset($this->notificationService)) {
+                $this->notificationService->notify(
+                    $manager,
+                    'طلب إرجاع عهدة',
+                    "يوجد طلب إرجاع عهدة طلب مواد جديد برقم {$custodyReturn->serial_number}",
+                    'custody-return-request',
+                    $custodyReturn->id
+                );
+            }
             DB::commit();
             return $this->successResponse(
                 $custodyReturn,
