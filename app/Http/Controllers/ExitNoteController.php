@@ -36,15 +36,31 @@ class ExitNoteController extends Controller
                 ->with([
                     'warehouse',    //   علاقة المستودع
                     'createdBy',
-                    'user',         //   علاقة المستخدم
                     'items.product',  //   تحميل تفاصيل المنتج لكل عنصر إخراج
-                    'items.location'  //   تحميل تفاصيل الموقع لكل عنصر إخراج
                 ])
                 ->get();
 
             return $this->successResponse($notes, 'تم جلب المذكرات مع عدد الأصناف بنجاح');
-        } catch (\Exception $e) {
-            return $this->handleExceptionResponse($e);
+        } catch (\Exception $e) {  DB::rollBack();
+
+            // تحقق إذا كان التطبيق في وضع التصحيح (Debug Mode)
+            if (config('app.debug')) {
+                //  في بيئة التطوير: أرجع الخطأ بالتفصيل الكامل
+                return response()->json([
+                    'success' => false,
+                    'message' => 'حدث خطأ: ' . $e->getMessage(),
+                    'file' => $e->getFile(), // <-- ملف الخطأ
+                    'line' => $e->getLine(), // <-- سطر الخطأ
+                    'trace' => $e->getTraceAsString() // <-- تتبع مسار الخطأ (اختياري لكن مفيد جداً)
+                ], 500); // 500 هو رمز الخطأ الأنسب للخوادم
+            }
+
+            // في بيئة الإنتاج: أرجع رسالة عامة وآمنة
+            return $this->errorResponse(
+                message: 'فشل في الموافقة على المذكرة، حدث خطأ غير متوقع.',
+                code: 500, // استخدم 500 Internal Server Error
+                internalCode: 'SCRAP_NOTE_APPROVAL_FAILED'
+            );
         }
     }
 
@@ -349,9 +365,8 @@ class ExitNoteController extends Controller
             $note = ExitNote::with([
                 'warehouse',    // <--- إضافة: تحميل المستودع
                 'createdBy',
-                'user',         // <--- إضافة: تحميل المستخدم
                 'items.product',    // <--- جديد: تحميل تفاصيل المنتج لكل عنصر إخراج
-                'items.location'    // <--- جديد: تحميل تفاصيل الموقع لكل عنصر إخراج
+                  // <--- جديد: تحميل تفاصيل الموقع لكل عنصر إخراج
             ])
                 ->findOrFail($id);
             return $this->successResponse($note, 'تم جلب المذكرة بنجاح');
